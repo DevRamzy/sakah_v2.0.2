@@ -1,204 +1,15 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { motion } from 'framer-motion';
+import { Info, ShieldCheck, MapPin, Phone, Mail } from 'lucide-react';
+import { getImageUrl, getPlaceholderImage } from '../utils/imageUtils';
 import { getListingById } from '../features/listings/services/listingService';
-import { listBuckets, getPlaceholderImage, getImageUrl } from '../utils/imageUtils';
-import { ListingCategory } from '../types/listings';
-import type { 
-  Listing, 
-  PropertyListing, 
-  ServiceListing, 
-  AutoDealershipListing,
-  StoreListing,
-  BusinessHours
-} from '../types/listings';
-import { motion, useScroll, useTransform } from 'framer-motion';
-import {
-  MapPin, Star, Phone, Mail, Globe, Clock, Tag, BedDouble, Bath, ListChecks, Wrench, ShoppingBag, Car, Building, Info, ShieldCheck, ExternalLink, Bookmark, ArrowLeft, Image as ImageIcon
-} from 'lucide-react';
-import ImageGallery from '../components/gallery/ImageGallery';
-
-const DetailItem: React.FC<{ icon: React.ElementType, label: string, value?: string | number | null, children?: React.ReactNode, className?: string }> = ({ icon: Icon, label, value, children, className }) => (
-  <div className={`py-3 ${className || ''}`}>
-    <div className="flex items-center mb-1.5">
-      <Icon className="w-5 h-5 mr-2 text-yellow-500 flex-shrink-0" />
-      <dt className="text-base font-medium text-neutral-700">{label}</dt>
-    </div>
-    <dd className="text-neutral-800 ml-7 text-base">
-      {children || value || <span className="text-neutral-400 italic">Not specified</span>}
-    </dd>
-  </div>
-);
-
-const renderCategorySpecificDetails = (listing: Listing) => {
-  // Render property-specific details
-  const renderPropertyDetails = (listing: PropertyListing) => {
-    const { propertyDetails } = listing;
-    
-    if (!propertyDetails) return null;
-    
-    return (
-      <div className="mb-8 pb-8 border-b border-neutral-200">
-        <h3 className="text-2xl font-bold text-neutral-800 mb-4 flex items-center">
-          <Building className="w-6 h-6 mr-2.5 text-yellow-500 flex-shrink-0" /> Property Details
-        </h3>
-        <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-          {propertyDetails.propertyType && <DetailItem icon={Building} label="Property Type" value={propertyDetails.propertyType} />}
-          {propertyDetails.bedrooms && <DetailItem icon={BedDouble} label="Bedrooms" value={propertyDetails.bedrooms} />}
-          {propertyDetails.bathrooms && <DetailItem icon={Bath} label="Bathrooms" value={propertyDetails.bathrooms} />}
-          {propertyDetails.size && <DetailItem icon={MapPin} label="Square Footage" value={`${propertyDetails.size} sq ft`} />}
-          {propertyDetails.amenities && propertyDetails.amenities.length > 0 && (
-            <DetailItem icon={ListChecks} label="Amenities" className="md:col-span-2">
-              <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-                {propertyDetails.amenities.map((amenity: string, index: number) => (
-                  <li key={index} className="flex items-center bg-neutral-50 px-3 py-2 rounded-lg shadow-sm">
-                    <ShieldCheck className="w-5 h-5 mr-2 text-yellow-500 flex-shrink-0" />
-                    <span className="text-neutral-800">{amenity}</span>
-                  </li>
-                ))}
-              </ul>
-            </DetailItem>
-          )}
-        </dl>
-      </div>
-    );
-  };
-
-  switch (listing.category) {
-    case ListingCategory.PROPERTY:
-      const propertyListing = listing as PropertyListing;
-      return renderPropertyDetails(propertyListing);
-    case ListingCategory.SERVICES:
-      const serviceListing = listing as ServiceListing;
-      return (
-        <div className="mb-8 pb-8 border-b border-neutral-200">
-          <h3 className="text-2xl font-bold text-neutral-800 mb-4 flex items-center">
-            <Wrench className="w-6 h-6 mr-2.5 text-yellow-500 flex-shrink-0" /> Service Details
-          </h3>
-          <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-            {serviceListing.services && serviceListing.services.length > 0 && (
-              <div className="md:col-span-2">
-                <h4 className="font-semibold text-lg text-neutral-800 mb-3">Services Offered</h4>
-                <ul className="space-y-3">
-                  {serviceListing.services.map(service => (
-                    <li key={service.id || service.name} className="p-4 border border-neutral-200 rounded-lg bg-white shadow-md hover:shadow-lg transition-shadow">
-                      <div className="font-semibold text-neutral-900 text-lg">{service.name}</div>
-                      {service.description && <div className="text-neutral-600 mt-1.5">{service.description}</div>}
-                      {service.price && <div className="font-medium text-neutral-700 mt-2">Price: ${service.price}</div>}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </dl>
-        </div>
-      );
-    case ListingCategory.STORE:
-      const storeListing = listing as StoreListing;
-      return (
-        <div className="mb-8 pb-8 border-b border-neutral-200">
-          <h3 className="text-2xl font-bold text-neutral-800 mb-4 flex items-center">
-            <ShoppingBag className="w-6 h-6 mr-2.5 text-yellow-500 flex-shrink-0" /> Store Details
-          </h3>
-          <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-            <DetailItem icon={Clock} label="Business Hours" className="md:col-span-2">
-              {storeListing.businessHours && storeListing.businessHours.length > 0 ? (
-                <ul className="space-y-1.5">
-                  {storeListing.businessHours.map((bh: BusinessHours) => (
-                    <li key={bh.day} className="flex justify-between py-1">
-                      <span className="font-medium capitalize">{bh.day}:</span> 
-                      <span className={`font-medium ${!bh.isClosed && bh.openTime && bh.closeTime ? 'text-green-700' : 'text-red-600'}`}>
-                        {!bh.isClosed && bh.openTime && bh.closeTime ? `${bh.openTime} - ${bh.closeTime}` : 'Closed'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <span className="text-neutral-400 italic">No business hours specified</span>
-              )}
-            </DetailItem>
-          </dl>
-        </div>
-      );
-    case ListingCategory.AUTO_DEALERSHIP:
-      const autoDealershipListing = listing as AutoDealershipListing;
-      const { autoDealershipDetails } = autoDealershipListing;
-      
-      return (
-        <div className="mb-8 pb-8 border-b border-neutral-200">
-          <h3 className="text-2xl font-bold text-neutral-800 mb-4 flex items-center">
-            <Car className="w-6 h-6 mr-2.5 text-yellow-500 flex-shrink-0" /> Dealership Details
-          </h3>
-          <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-            {autoDealershipDetails?.financingAvailable !== undefined && (
-              <DetailItem 
-                icon={Tag} 
-                label="Financing" 
-                value={autoDealershipDetails.financingAvailable ? 'Available' : 'Not Available'} 
-              />
-            )}
-            
-            {autoDealershipDetails?.brands && autoDealershipDetails.brands.length > 0 && (
-              <DetailItem icon={Tag} label="Brands" className="md:col-span-2">
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {autoDealershipDetails.brands.map((brand, index) => (
-                    <span key={index} className="px-3 py-1.5 bg-neutral-100 text-neutral-700 text-sm rounded-lg shadow-sm border border-neutral-200">
-                      {brand}
-                    </span>
-                  ))}
-                </div>
-              </DetailItem>
-            )}
-            
-            {autoDealershipDetails?.specializations && autoDealershipDetails.specializations.length > 0 && (
-              <DetailItem icon={ShieldCheck} label="Specializations" className="md:col-span-2">
-                <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-                  {autoDealershipDetails.specializations.map((spec, index) => (
-                    <li key={index} className="flex items-center bg-neutral-50 px-3 py-2 rounded-lg shadow-sm">
-                      <ShieldCheck className="w-5 h-5 mr-2 text-yellow-500 flex-shrink-0" />
-                      <span className="text-neutral-800">{spec}</span>
-                    </li>
-                  ))}
-                </ul>
-              </DetailItem>
-            )}
-            
-            {autoDealershipDetails?.servicesOffered && autoDealershipDetails.servicesOffered.length > 0 && (
-              <DetailItem icon={ListChecks} label="Services Offered" className="md:col-span-2">
-                <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-                  {autoDealershipDetails.servicesOffered.map((service: string, index: number) => (
-                    <li key={index} className="flex items-center bg-neutral-50 px-3 py-2 rounded-lg shadow-sm">
-                      <ShieldCheck className="w-5 h-5 mr-2 text-yellow-500 flex-shrink-0" />
-                      <span className="text-neutral-800">{service}</span>
-                    </li>
-                  ))}
-                </ul>
-              </DetailItem>
-            )}
-            
-            <DetailItem icon={Clock} label="Business Hours" className="md:col-span-2">
-              {autoDealershipListing.businessHours && autoDealershipListing.businessHours.length > 0 ? (
-                <ul className="space-y-1.5">
-                  {autoDealershipListing.businessHours.map((bh: BusinessHours) => (
-                    <li key={bh.day} className="flex justify-between py-1">
-                      <span className="font-medium capitalize">{bh.day}:</span> 
-                      <span className={`font-medium ${!bh.isClosed && bh.openTime && bh.closeTime ? 'text-green-700' : 'text-red-600'}`}>
-                        {!bh.isClosed && bh.openTime && bh.closeTime ? `${bh.openTime} - ${bh.closeTime}` : 'Closed'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <span className="text-neutral-400 italic">No business hours specified</span>
-              )}
-            </DetailItem>
-          </dl>
-        </div>
-      );
-    default:
-      return null;
-  }
-};
+import { useAuth } from '../contexts/AuthContext';
+import type { Listing } from '../types/listings';
+import type { ProcessedImage } from '../types/images';
+import ListingHero from '../components/listing-detail/ListingHero';
+import ListingActionButtons from '../components/listing-detail/ListingActionButtons';
+import ListingOwnerControls from '../components/listing-detail/ListingOwnerControls';
 
 const ListingDetailPage: React.FC = () => {
   const { listingId } = useParams<{ listingId: string }>();
@@ -208,81 +19,61 @@ const ListingDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
 
-  const heroRef = useRef<HTMLDivElement>(null);
-  // const mainContentRef = useRef<HTMLDivElement>(null); // Not used currently
-
-  const { scrollYProgress: scrollYProgressHero } = useScroll({
-    target: heroRef,
-    offset: ['start start', 'end start'],
-  });
-
-  // scrollYProgressContent and its useScroll call removed as it's unused
-  // const { scrollYProgress: scrollYProgressContent } = useScroll({
-  //   target: mainContentRef,
-  //   offset: ['start end', 'end start'],
-  // });
-
-  const heroImageY = useTransform(scrollYProgressHero, [0, 1], ['0%', '50%']);
-  const heroImageScale = useTransform(scrollYProgressHero, [0, 1], [1, 1.3]);
-  const heroContentOpacity = useTransform(scrollYProgressHero, [0, 0.5, 1], [1, 1, 0]);
-
+  // Process images only if listing exists
   const processedImages = useMemo(() => {
     if (!listing?.images) return [];
     
-    console.log('[ListingDetailPage] Raw listing images:', listing.images);
-    
-    // Process each image individually for better debugging
-    const processed = listing.images.map(image => {
-      // Log the raw image data
-      console.log('[ListingDetailPage] Processing image:', {
-        id: image.id,
-        path: image.path,
-        storagePath: image.storagePath,
-        isPrimary: image.isPrimary
-      });
-      
-      // If the image already has a valid URL, use it directly
-      if (image.url && (image.url.startsWith('http://') || image.url.startsWith('https://'))) {
-        console.log('[ListingDetailPage] Image already has valid URL:', image.url);
-        return image;
+    return (listing.images || []).map((image: any) => {
+      // Handle string image paths
+      if (typeof image === 'string') {
+        return { 
+          url: getImageUrl(image), 
+          isPrimary: false 
+        } as ProcessedImage;
       }
       
-      // Generate URL from storagePath
-      const storagePath = image.storagePath || image.path;
-      if (storagePath) {
-        try {
-          const url = getImageUrl(storagePath, 'listing_images');
-          console.log(`[ListingDetailPage] Generated URL for image:`, { storagePath, url });
-          return { ...image, url };
-        } catch (error) {
-          console.error(`[ListingDetailPage] Error generating URL:`, error);
-          return { ...image, url: getPlaceholderImage() };
+      // Handle image objects
+      try {
+        // If image already has a valid URL
+        if (image.url && (image.url.startsWith('http://') || image.url.startsWith('https://'))) {
+          return {
+            ...image,
+            isPrimary: image.isPrimary || false
+          } as ProcessedImage;
         }
+        
+        // Get URL from storage path
+        const storagePath = image.storagePath || image.path;
+        if (storagePath) {
+          return {
+            ...image,
+            url: getImageUrl(storagePath, 'listing_images'),
+            isPrimary: image.isPrimary || false
+          } as ProcessedImage;
+        }
+        
+        // Fallback
+        return {
+          ...image,
+          url: getPlaceholderImage(),
+          isPrimary: image.isPrimary || false
+        } as ProcessedImage;
+      } catch (error) {
+        // Error fallback
+        return {
+          ...image,
+          url: getPlaceholderImage(),
+          isPrimary: image.isPrimary || false
+        } as ProcessedImage;
       }
-      
-      // Fallback to placeholder
-      return { ...image, url: getPlaceholderImage() };
     });
-    
-    console.log('[ListingDetailPage] Processed images:', processed);
-    return processed;
   }, [listing?.images]);
 
   const primaryImage = useMemo(() => {
     if (!processedImages?.length) return getPlaceholderImage();
-    
-    // Find the primary image, or default to the first image
-    const primary = processedImages.find(img => img.isPrimary) || processedImages[0];
+    const primary = processedImages.find((img) => img.isPrimary) || processedImages[0];
     return primary.url || getPlaceholderImage();
   }, [processedImages]);
-
-  const enhancedListing = useMemo(() => {
-    if (!listing) return null;
-    return {
-      ...listing,
-      images: processedImages
-    };
-  }, [listing, processedImages]);
 
   useEffect(() => {
     if (!listingId) {
@@ -290,24 +81,15 @@ const ListingDetailPage: React.FC = () => {
       setLoading(false);
       return;
     }
-
     const fetchListing = async () => {
       try {
         setLoading(true);
-        
-        // Debug: List available buckets in Supabase
-        const buckets = await listBuckets();
-        console.log('[ListingDetailPage] Available buckets in Supabase:', buckets);
-        
         const fetchedListing = await getListingById(listingId);
-
         if (!fetchedListing) {
           setError('Listing not found.');
           setLoading(false);
           return;
         }
-
-        // Access control logic
         if (!fetchedListing.isPublished) {
           if (!user || user.id !== fetchedListing.userId) {
             setAccessDenied(true);
@@ -315,8 +97,6 @@ const ListingDetailPage: React.FC = () => {
             return;
           }
         }
-
-        console.log('[ListingDetailPage] Fetched Listing Images:', fetchedListing?.images);
         setListing(fetchedListing);
         setError(null);
       } catch (err) {
@@ -326,17 +106,19 @@ const ListingDetailPage: React.FC = () => {
         setLoading(false);
       }
     };
-
     fetchListing();
   }, [listingId, user?.id]);
 
+  const handleContactClick = () => {
+    if (listing?.phone) window.location.href = `tel:${listing.phone}`;
+    else if (listing?.email) window.location.href = `mailto:${listing.email}`;
+    else console.log('No contact information available');
+  };
 
-
-  // Mock rating data (would come from the database in a real implementation)
-  const rating = listing ? {
-    value: (Math.random() * 1.5 + 3.5).toFixed(1), // Random rating between 3.5 and 5.0
-    count: Math.floor(Math.random() * 300) + 10 // Random count between 10 and 310
-  } : null;
+  const handleSaveClick = () => {
+    console.log('Save listing clicked');
+    alert('Save functionality to be implemented!');
+  };
 
   if (loading) {
     return (
@@ -345,7 +127,6 @@ const ListingDetailPage: React.FC = () => {
       </div>
     );
   }
-
   if (accessDenied) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-neutral-100 p-4 text-center">
@@ -355,11 +136,9 @@ const ListingDetailPage: React.FC = () => {
         <Link to="/listings" className="px-6 py-2 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-600 transition-colors">
           Back to Listings
         </Link>
-        {/* <Navigate to="/" replace /> */}
       </div>
     );
   }
-
   if (error) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-neutral-100 p-4 text-center">
@@ -369,11 +148,9 @@ const ListingDetailPage: React.FC = () => {
         <Link to="/listings" className="px-6 py-2 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-600 transition-colors">
           Back to Listings
         </Link>
-        {/* <Navigate to="/" replace /> */}
       </div>
     );
   }
-
   if (!listing) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-neutral-100 p-4 text-center">
@@ -386,209 +163,174 @@ const ListingDetailPage: React.FC = () => {
     );
   }
 
-
-
-  // Handle contact button click
-  const handleContactClick = () => {
-    if (listing?.phone) {
-      window.location.href = `tel:${listing.phone}`;
-    } else if (listing?.email) {
-      window.location.href = `mailto:${listing.email}`;
-    } else {
-      // Handle case where no contact info is available, perhaps scroll to a contact form if one exists
-      console.log('No contact information available');
-    }
-  };
-
-  // Handle save button click (placeholder)
-  const handleSaveClick = () => {
-    // Implement save/bookmark functionality here
-    console.log('Save listing clicked');
-    alert('Save functionality to be implemented!');
-  };
-
   return (
     <motion.div 
       initial={{ opacity: 0 }} 
       animate={{ opacity: 1 }} 
-      transition={{ duration: 0.5 }}
-      className="bg-neutral-100 min-h-screen"
+      transition={{ duration: 0.7, ease: "easeOut" }}
+      className="bg-neutral-50 min-h-screen pb-16"
     >
-      {/* Hero Section */}
-      <motion.div 
-        ref={heroRef} 
-        className="relative h-[50vh] md:h-[60vh] w-full overflow-hidden bg-black"
-      >
-        {primaryImage ? (
-          <motion.img 
-            src={primaryImage} 
-            alt={listing.businessName} 
-            className="absolute inset-0 w-full h-[130%] md:h-[150%] object-cover"
-            style={{ y: heroImageY, scale: heroImageScale }}
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-neutral-800">
-            <Building className="w-32 h-32 text-neutral-600" />
+      {/* Hero Banner with Image Slider */}
+      <ListingHero 
+        businessName={listing.businessName}
+        primaryImage={primaryImage}
+        images={processedImages.map(img => ({ 
+          url: img.url || '', 
+          id: img.id || String(Math.random()) 
+        }))}
+        category={listing.category}
+        subcategory={listing.subcategory}
+        location={listing.location}
+        isVerified={true} // Assuming the business is verified
+        businessHours={listing.businessHours?.reduce((acc, hour) => {
+          acc[hour.day] = hour.isClosed ? 'Closed' : `${hour.openTime || '9:00 am'} - ${hour.closeTime || '6:00 pm'}`;
+          return acc;
+        }, {} as Record<string, string>)}
+      />
+      
+      {/* Floating Action Buttons */}
+      <ListingActionButtons 
+        onContactClick={handleContactClick}
+        onSaveClick={handleSaveClick}
+      />
+
+      {/* Main Content Container - 90% width */}
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-[90%] max-w-7xl">
+        {/* Owner Controls - Only visible to listing owner */}
+        <ListingOwnerControls listing={listing} userId={user?.id} />
+        
+        {/* Added By Section */}
+        <div className="mt-6 mb-8">
+          <h3 className="text-sm font-medium text-neutral-500 mb-2">Added By:</h3>
+          <div className="flex items-center">
+            <div className="w-10 h-10 rounded-full bg-neutral-200 flex items-center justify-center mr-3">
+              {listing.userId ? listing.userId.substring(0, 2).toUpperCase() : 'JD'}
+            </div>
+            <div>
+              <p className="font-medium">John Doe</p>
+              <div className="flex items-center gap-4 mt-1">
+                <a href={`tel:${listing.phone || '+254 700 123 456'}`} className="text-sm text-neutral-600 flex items-center hover:text-yellow-500 transition-colors">
+                  <Phone className="w-4 h-4 text-yellow-500 mr-1" />
+                  {listing.phone || '+254 700 123 456'}
+                </a>
+                <a href={`mailto:${listing.email || 'john@example.com'}`} className="text-sm text-neutral-600 flex items-center hover:text-yellow-500 transition-colors">
+                  <Mail className="w-4 h-4 text-yellow-500 mr-1" />
+                  {listing.email || 'john@example.com'}
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+
+        
+        {/* About Service Section */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+          <h2 className="text-xl md:text-2xl font-semibold mb-4">About Service</h2>
+          <p className="text-neutral-600 whitespace-pre-line">{listing.description}</p>
+        </div>
+        
+        {/* Listing Details Section */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+          <h2 className="text-xl md:text-2xl font-semibold mb-4">Listing Details</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {listing.services && listing.services.length > 0 && (
+              <div>
+                <h3 className="text-lg font-medium mb-2">Services Offered</h3>
+                <ul className="list-disc list-inside space-y-1">
+                  {listing.services.map((service, index) => (
+                    <li key={service.id || index} className="text-neutral-600">{service.name}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {/* Additional details based on category */}
+            {listing.category === 'PROPERTY' && listing.propertyDetails && (
+              <div>
+                <h3 className="text-lg font-medium mb-2">Property Details</h3>
+                <p className="text-neutral-600">Type: {listing.propertyDetails.propertyType}</p>
+                {listing.propertyDetails.size && <p className="text-neutral-600">Size: {listing.propertyDetails.size} sqft</p>}
+                {listing.propertyDetails.bedrooms && <p className="text-neutral-600">Bedrooms: {listing.propertyDetails.bedrooms}</p>}
+                {listing.propertyDetails.bathrooms && <p className="text-neutral-600">Bathrooms: {listing.propertyDetails.bathrooms}</p>}
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Business Hours Section */}
+        {listing.businessHours && listing.businessHours.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 className="text-xl md:text-2xl font-semibold mb-4">Business Hours</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {listing.businessHours.map((hour, index) => (
+                <div key={index} className="flex justify-between items-center py-1">
+                  <span className="font-medium">{hour.day}</span>
+                  <span className={`px-3 py-1 rounded-full text-sm ${hour.isClosed ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    {hour.isClosed ? 'Closed' : `${hour.openTime} - ${hour.closeTime}`}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent"></div>
         
-        <Link 
-          to="/listings"
-          className="absolute top-4 right-4 md:top-6 md:right-6 z-20 bg-black/50 hover:bg-yellow-500 text-white hover:text-black p-2.5 rounded-full transition-colors duration-300 shadow-lg"
-          aria-label="Back to listings"
-        >
-          <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" />
-        </Link>
-
-        <motion.div 
-          style={{ opacity: heroContentOpacity }}
-          className="absolute bottom-0 left-0 right-0 p-4 md:p-8 z-10"
-        >
-          <h1 className="text-white text-3xl sm:text-4xl md:text-5xl font-bold drop-shadow-xl">
-            {listing.businessName}
-          </h1>
-        </motion.div>
-
-        {/* Floating action buttons */}
-        <div className="fixed bottom-6 right-6 flex flex-col space-y-3 z-30">
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ delay: 0.2 }}
-            onClick={handleContactClick}
-            className="w-14 h-14 bg-yellow-500 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:bg-yellow-400 transition-all duration-300">
-            <Phone className="w-6 h-6 text-white" />
-          </motion.button>
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ delay: 0.3 }}
-            onClick={handleSaveClick}
-            className="w-14 h-14 bg-black rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:bg-neutral-800 transition-all duration-300">
-            <Bookmark className="w-6 h-6 text-white" />
-          </motion.button>
-        </div>
-      </motion.div>
-
-      {/* Main Content Area */}
-      <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-t-xl md:rounded-xl -mt-12 md:-mt-20 relative z-10">
-        <div className="p-6 md:p-10">
-          {/* Header Section (condensed, as title is in hero) */}
-          <div className="mb-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start mb-3">
-              {/* Business Name h1 is removed from here */}
-              {rating && (
-                <div className="flex items-center flex-shrink-0 bg-neutral-100 px-4 py-2 rounded-lg shadow-sm">
-                  <Star className="w-6 h-6 text-yellow-400 fill-yellow-400" />
-                  <span className="ml-2 text-lg font-semibold text-neutral-800">{rating.value}</span>
-                  <span className="ml-1.5 text-sm text-neutral-500">({rating.count} reviews)</span>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center text-neutral-700 mb-4 text-lg">
-              <MapPin className="w-6 h-6 mr-2.5 text-yellow-500 flex-shrink-0" />
-              <span>{listing.location}</span>
-            </div>
-            <span 
-              className={`inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium tracking-wide 
-                ${listing.isPublished 
-                  ? 'bg-green-100 text-green-800 ring-1 ring-inset ring-green-600/30' 
-                  : 'bg-yellow-100 text-yellow-800 ring-1 ring-inset ring-yellow-600/30'}
-              `}
-            >
-              {listing.isPublished ? 'Published' : 'Draft'}
-            </span>
-          </div>
-          
-          {/* Image Gallery Section */}
-          {listing.images && listing.images.length > 0 && (
-            <div className="mb-8 pb-8 border-b border-neutral-200">
-              <h2 className="text-2xl font-bold text-neutral-800 mb-4 flex items-center">
-                <ImageIcon className="w-6 h-6 mr-2.5 text-yellow-500 flex-shrink-0" /> Gallery
-              </h2>
-              <ImageGallery 
-                images={enhancedListing ? enhancedListing.images : []} 
-                initialImageIndex={enhancedListing && enhancedListing.images.findIndex(img => img.isPrimary) !== -1 ? 
-                  enhancedListing.images.findIndex(img => img.isPrimary) : 0} 
-              />
-            </div>
-          )}
-
-          {/* Description */}
-          {listing.description && (
-            <div className="mb-8 pb-8 border-b border-neutral-200">
-              <h2 className="text-2xl font-bold text-neutral-800 mb-4 flex items-center">
-                <Info className="w-6 h-6 mr-2.5 text-yellow-500 flex-shrink-0" /> About this Business
-              </h2>
-              <p className="text-neutral-700 text-base leading-relaxed whitespace-pre-line">
-                {listing.description}
-              </p>
-            </div>
-          )}
-
-          {/* Core Details Section */}
-          <div className="mb-8 pb-8 border-b border-neutral-200">
-            <h2 className="text-2xl font-bold text-neutral-800 mb-4 flex items-center">
-              <Tag className="w-6 h-6 mr-2.5 text-yellow-500 flex-shrink-0" /> General Information
-            </h2>
-            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-              <DetailItem icon={Tag} label="Category" value={`${listing.category}${listing.subcategory ? ` - ${listing.subcategory}` : ''}`} />
-              {listing.phone && <DetailItem icon={Phone} label="Phone"><a href={`tel:${listing.phone}`} className="text-yellow-600 hover:text-yellow-700 hover:underline">{listing.phone}</a></DetailItem>}
-              {listing.email && <DetailItem icon={Mail} label="Email"><a href={`mailto:${listing.email}`} className="text-yellow-600 hover:text-yellow-700 hover:underline">{listing.email}</a></DetailItem>}
-              {listing.website && 
-                <DetailItem icon={Globe} label="Website" className="md:col-span-2">
-                  <a href={listing.website} target="_blank" rel="noopener noreferrer" className="text-yellow-600 hover:text-yellow-700 hover:underline flex items-center">
-                    {listing.website} <ExternalLink className="w-4 h-4 ml-1.5" />
-                  </a>
-                </DetailItem>
+        {/* Featured Service Providers Section */}
+        <div className="mb-8">
+          <h2 className="text-xl md:text-2xl font-semibold mb-6">Featured Service Providers</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              {
+                id: 'sim1',
+                name: 'Premium Cleaning Services',
+                category: listing.category,
+                location: 'Nairobi, Kenya',
+                image: 'https://source.unsplash.com/random/300x200?cleaning,1'
+              },
+              {
+                id: 'sim2',
+                name: 'Expert Home Repairs',
+                category: listing.category,
+                location: 'Mombasa, Kenya',
+                image: 'https://source.unsplash.com/random/300x200?repair,2'
+              },
+              {
+                id: 'sim3',
+                name: 'Luxury Interior Design',
+                category: listing.category,
+                location: 'Kisumu, Kenya',
+                image: 'https://source.unsplash.com/random/300x200?interior,3'
+              },
+              {
+                id: 'sim4',
+                name: 'Professional Landscaping',
+                category: listing.category,
+                location: 'Nakuru, Kenya',
+                image: 'https://source.unsplash.com/random/300x200?landscape,4'
               }
-            </dl>
+            ].map((item) => (
+              <Link 
+                key={item.id} 
+                to={`/listings/${item.id}`}
+                className="block bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="h-48 bg-neutral-200 relative">
+                  <img 
+                    src={item.image} 
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="p-4">
+                  <h3 className="font-medium text-lg">{item.name}</h3>
+                  <p className="text-sm text-neutral-500 flex items-center mt-1">
+                    <MapPin className="w-4 h-4 mr-1" />
+                    {item.location}
+                  </p>
+                </div>
+              </Link>
+            ))}
           </div>
-
-          {/* Category Specific Details Rendered Here */}
-          {renderCategorySpecificDetails(listing)}
-
-          {/* Business Hours */}
-          {listing.businessHours && listing.businessHours.length > 0 && (
-            <div className="mt-8 pt-8 border-t border-neutral-200">
-              <h3 className="text-2xl font-bold text-neutral-800 mb-4 flex items-center">
-                <Clock className="w-6 h-6 mr-2.5 text-yellow-500 flex-shrink-0" /> Business Hours
-              </h3>
-              <ul className="space-y-2">
-                {listing.businessHours.map(bh => (
-                  <li key={bh.day} className="flex justify-between text-base text-neutral-700 py-2 border-b border-neutral-100 last:border-b-0">
-                    <span className="font-medium text-neutral-800 capitalize">{bh.day}:</span> 
-                    <span className={`font-medium ${!bh.isClosed && bh.openTime && bh.closeTime ? 'text-green-700' : 'text-red-600'}`}>
-                      {!bh.isClosed && bh.openTime && bh.closeTime ? `${bh.openTime} - ${bh.closeTime}` : 'Closed'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Services (if applicable and not the primary category, e.g. for a Store that also offers repairs) */}
-          {listing.category !== ListingCategory.SERVICES && listing.services && listing.services.length > 0 && (
-            <div className="mt-8 pt-8 border-t border-neutral-200">
-              <h3 className="text-2xl font-bold text-neutral-800 mb-4 flex items-center">
-                <ListChecks className="w-6 h-6 mr-2.5 text-yellow-500 flex-shrink-0" /> Additional Services
-              </h3>
-              <ul className="space-y-4">
-                {listing.services.map(service => (
-                  <li key={service.id || service.name} className="p-4 border border-neutral-200 rounded-lg bg-white shadow-md hover:shadow-lg transition-shadow">
-                    <p className="font-semibold text-neutral-900 text-lg">{service.name}</p>
-                    {service.description && <p className="text-sm text-neutral-600 mt-1.5">{service.description}</p>}
-                    {service.price && <p className="text-base text-neutral-700 mt-2 font-medium">Price: ${service.price}</p>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       </div>
     </motion.div>

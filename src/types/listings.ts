@@ -79,13 +79,6 @@ export interface PropertyDetails {
   amenities?: string[];
 }
 
-export interface AutoDealershipDetails {
-  brands: string[];
-  servicesOffered?: string[];
-  financingAvailable: boolean;
-  specializations?: string[];
-}
-
 export interface ListingImage {
   id?: string;
   listingId?: string;
