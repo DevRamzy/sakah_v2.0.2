@@ -1,5 +1,4 @@
 export { default as DetailItem } from './DetailItem';
-export { default as ListingHero } from './ListingHero';
 export { default as ListingActionButtons } from './ListingActionButtons';
 export { default as ListingHeader } from './ListingHeader';
 export { default as ListingDescription } from './ListingDescription';
