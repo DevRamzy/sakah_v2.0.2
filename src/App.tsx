@@ -31,7 +31,7 @@ function App() {
           {/* Unified listing detail page handles all listing types */}
           <Route path="/listings/:listingId" element={<UnifiedListingDetailPage />} />
           {/* Legacy property route redirects to unified page */}
-          <Route path="/property/:listingId" element={<Navigate to="/listings/:listingId" replace />} />
+          <Route path="/property/:listingId" element={<Navigate to="/listings/:listingId\" replace />} />
         </Route>
 
         {/* Auth routes without layout */}
@@ -45,7 +45,7 @@ function App() {
         </Route>
 
         {/* Catch all route redirects to landing page */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/\" replace />} />
       </Routes>
     </Router>
   );
