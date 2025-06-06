@@ -5,41 +5,38 @@ import {
   ChevronLeft, 
   ChevronRight, 
   X, 
-  Maximize, 
   Share2, 
   Heart, 
   Camera,
   Play,
-  MapPin,
-  Bed,
-  Bath,
-  Square
+  MapPin
 } from 'lucide-react';
+import type { ProcessedImage } from './ImageProcessor';
 
-interface PropertyHeroProps {
-  propertyName: string;
-  price: number;
-  bedrooms?: number;
-  bathrooms?: number;
-  squareFootage?: number;
+interface HeroSectionProps {
+  title: string;
+  subtitle?: string;
   location: string;
-  images?: Array<{ url: string; id?: string }>;
+  images: ProcessedImage[];
+  backPath?: string;
+  backLabel?: string;
   hasVirtualTour?: boolean;
-  onScheduleViewing: () => void;
-  onContactAgent: () => void;
+  onShare?: () => void;
+  onFavorite?: () => void;
+  children?: React.ReactNode; // For custom overlay content
 }
 
-const PropertyHero: React.FC<PropertyHeroProps> = ({
-  propertyName,
-  price,
-  bedrooms,
-  bathrooms,
-  squareFootage,
+const HeroSection: React.FC<HeroSectionProps> = ({
+  title,
+  subtitle,
   location,
-  images = [],
+  images,
+  backPath = "/listings",
+  backLabel = "Back to Listings",
   hasVirtualTour = false,
-  onScheduleViewing,
-  onContactAgent
+  onShare,
+  onFavorite,
+  children
 }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
@@ -57,30 +54,31 @@ const PropertyHero: React.FC<PropertyHeroProps> = ({
     };
   }, [isGalleryOpen]);
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price);
-  };
-
   const handleShare = async () => {
+    if (onShare) {
+      onShare();
+      return;
+    }
+
     if (navigator.share) {
       try {
         await navigator.share({
-          title: propertyName,
-          text: `Check out this property: ${propertyName}`,
+          title: title,
+          text: `Check out: ${title}`,
           url: window.location.href,
         });
       } catch (error) {
         console.log('Error sharing:', error);
       }
     } else {
-      // Fallback: copy to clipboard
       navigator.clipboard.writeText(window.location.href);
-      // You could show a toast notification here
+    }
+  };
+
+  const handleFavorite = () => {
+    setIsFavorited(!isFavorited);
+    if (onFavorite) {
+      onFavorite();
     }
   };
 
@@ -89,18 +87,18 @@ const PropertyHero: React.FC<PropertyHeroProps> = ({
       {/* Back Navigation */}
       <div className="absolute top-4 left-4 z-20">
         <Link 
-          to="/listings"
+          to={backPath}
           className="flex items-center gap-2 px-4 py-2 bg-black/50 backdrop-blur-md hover:bg-black/70 text-white rounded-full transition-all duration-300 shadow-lg"
         >
           <ChevronLeft className="w-5 h-5" />
-          <span className="text-sm font-medium">Back to Listings</span>
+          <span className="text-sm font-medium">{backLabel}</span>
         </Link>
       </div>
 
       {/* Action Buttons */}
       <div className="absolute top-4 right-4 z-20 flex gap-2">
         <button
-          onClick={() => setIsFavorited(!isFavorited)}
+          onClick={handleFavorite}
           className={`p-3 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg ${
             isFavorited 
               ? 'bg-red-500 text-white' 
@@ -123,7 +121,7 @@ const PropertyHero: React.FC<PropertyHeroProps> = ({
           <>
             <img
               src={images[currentImageIndex]?.url}
-              alt={`${propertyName} - Image ${currentImageIndex + 1}`}
+              alt={images[currentImageIndex]?.alt || title}
               className="w-full h-full object-cover"
             />
             
@@ -184,55 +182,20 @@ const PropertyHero: React.FC<PropertyHeroProps> = ({
         )}
       </div>
 
-      {/* Property Information Overlay */}
+      {/* Content Overlay */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-6 text-white">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold mb-2">{propertyName}</h1>
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">{title}</h1>
+              {subtitle && (
+                <p className="text-xl text-white/90 mb-2">{subtitle}</p>
+              )}
               <div className="flex items-center gap-2 text-white/90 mb-4">
                 <MapPin className="w-4 h-4" />
                 <span>{location}</span>
               </div>
-              <div className="text-4xl md:text-5xl font-bold text-yellow-400 mb-4">
-                {formatPrice(price)}
-              </div>
-              <div className="flex gap-6 text-white/90">
-                {bedrooms && (
-                  <div className="flex items-center gap-2">
-                    <Bed className="w-5 h-5" />
-                    <span>{bedrooms} bed{bedrooms !== 1 ? 's' : ''}</span>
-                  </div>
-                )}
-                {bathrooms && (
-                  <div className="flex items-center gap-2">
-                    <Bath className="w-5 h-5" />
-                    <span>{bathrooms} bath{bathrooms !== 1 ? 's' : ''}</span>
-                  </div>
-                )}
-                {squareFootage && (
-                  <div className="flex items-center gap-2">
-                    <Square className="w-5 h-5" />
-                    <span>{squareFootage.toLocaleString()} sq ft</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={onScheduleViewing}
-                className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold rounded-lg transition-colors duration-300"
-              >
-                Schedule Viewing
-              </button>
-              <button
-                onClick={onContactAgent}
-                className="px-6 py-3 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white font-semibold rounded-lg transition-all duration-300 border border-white/30"
-              >
-                Contact Agent
-              </button>
+              {children}
             </div>
           </div>
         </div>
@@ -258,7 +221,7 @@ const PropertyHero: React.FC<PropertyHeroProps> = ({
               <div className="relative w-full h-full flex items-center justify-center p-4">
                 <img
                   src={images[currentImageIndex]?.url}
-                  alt={`${propertyName} - Image ${currentImageIndex + 1}`}
+                  alt={images[currentImageIndex]?.alt || title}
                   className="max-w-full max-h-full object-contain"
                 />
 
@@ -292,7 +255,7 @@ const PropertyHero: React.FC<PropertyHeroProps> = ({
                   >
                     <img
                       src={image.url}
-                      alt={`Thumbnail ${index + 1}`}
+                      alt={image.alt || `Thumbnail ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
                   </button>
@@ -311,4 +274,4 @@ const PropertyHero: React.FC<PropertyHeroProps> = ({
   );
 };
 
-export default PropertyHero;
+export default HeroSection;
