@@ -5,7 +5,7 @@ import { getListingById } from '../features/listings/services/listingService';
 import { useAuth } from '../contexts/AuthContext';
 import type { Listing, PropertyListing, ServiceListing, StoreListing, AutoDealershipListing } from '../types/listings';
 import { ListingCategory } from '../types/listings';
-import { Info, Image, MessageSquare, Package } from 'lucide-react';
+import { Info, Image, MessageSquare, Package, MapPin } from 'lucide-react';
 
 // Shared components
 import { useImageProcessor } from '../components/shared/ImageProcessor';
