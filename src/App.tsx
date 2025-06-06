@@ -6,6 +6,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import CreateListingWizard from './features/listings/components/wizard/CreateListingWizard';
 import ListingDetailPage from './pages/ListingDetailPage';
+import PropertyDetailPage from './pages/PropertyDetailPage';
 import ListingsPage from './pages/ListingsPage';
 import MainLayout from './components/layout/MainLayout';
 
@@ -35,12 +36,10 @@ function App() {
         <Route element={<MainLayout />}>
           <Route path="/listings" element={<ListingsPage />} />
           <Route path="/listings/:listingId" element={<ListingDetailPage />} />
+          {/* Property-specific detail page */}
+          <Route path="/property/:listingId" element={<PropertyDetailPage />} />
           {/* Add other public-facing routes here that need Header/Footer */}
         </Route>
-
-        {/* The ListingDetailPage itself handles auth for draft listings - this comment seems to be related to a specific detail within ListingDetailPage and doesn't affect the layout structure. */}
-        {/* Routes without MainLayout (e.g., if some protected routes shouldn't have it, or other specific cases) */}
-        {/* For example, if there was a public homepage distinct from /listings: <Route path="/home" element={<HomePage />} /> */}
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
