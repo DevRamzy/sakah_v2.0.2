@@ -23,7 +23,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Navigate to="/dashboard\" replace />} />
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
         <Route element={<ProtectedRoute />}>
@@ -36,10 +36,10 @@ function App() {
           {/* Unified listing detail page handles all listing types */}
           <Route path="/listings/:listingId" element={<UnifiedListingDetailPage />} />
           {/* Legacy property route redirects to unified page */}
-          <Route path="/property/:listingId" element={<Navigate to="/listings/:listingId" replace />} />
+          <Route path="/property/:listingId" element={<Navigate to="/listings/:listingId\" replace />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/\" replace />} />
       </Routes>
     </Router>
   );
