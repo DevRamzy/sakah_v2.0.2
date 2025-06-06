@@ -14,17 +14,60 @@ import {
   CheckCircle,
   TrendingUp,
   Shield,
-  Clock
+  Clock,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import Button from '../components/ui/Button';
+import { getPublishedListings } from '../features/listings/services/listingService';
+import { ListingCategory } from '../types/listings';
+import type { BaseListing } from '../types/listings';
+import ListingCard from '../features/listings/components/ListingCard';
 
 const LandingPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [location, setLocation] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [featuredListings, setFeaturedListings] = useState<Record<string, BaseListing[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [heroListings, setHeroListings] = useState<BaseListing[]>([]);
 
   useEffect(() => {
     setMounted(true);
+    
+    const fetchAllFeaturedListings = async () => {
+      setLoading(true);
+      
+      try {
+        // Fetch listings for each category
+        const categories = Object.values(ListingCategory);
+        const results: Record<string, BaseListing[]> = {};
+        
+        // Fetch hero listings (random mix of categories)
+        const heroResponse = await getPublishedListings({
+          limit: 5
+        });
+        setHeroListings(heroResponse.listingsData || []);
+        
+        // Fetch category-specific listings
+        for (const category of categories) {
+          const response = await getPublishedListings({
+            category: category as ListingCategory,
+            limit: 4
+          });
+          results[category] = response.listingsData || [];
+        }
+        
+        setFeaturedListings(results);
+      } catch (error) {
+        console.error('Error fetching featured listings:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAllFeaturedListings();
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -51,28 +94,32 @@ const LandingPage: React.FC = () => {
       name: 'Services', 
       description: 'Professional services for your needs',
       color: 'bg-green-100 text-green-700',
-      count: '500+'
+      count: '500+',
+      category: ListingCategory.SERVICES
     },
     { 
       icon: Building, 
       name: 'Property', 
       description: 'Find your perfect home or office',
       color: 'bg-blue-100 text-blue-700',
-      count: '200+'
+      count: '200+',
+      category: ListingCategory.PROPERTY
     },
     { 
       icon: ShoppingBag, 
       name: 'Stores', 
       description: 'Local shops and retailers',
       color: 'bg-purple-100 text-purple-700',
-      count: '300+'
+      count: '300+',
+      category: ListingCategory.STORE
     },
     { 
       icon: Car, 
       name: 'Vehicles', 
       description: 'Cars, motorcycles, and more',
       color: 'bg-red-100 text-red-700',
-      count: '150+'
+      count: '150+',
+      category: ListingCategory.AUTO_DEALERSHIP
     }
   ];
 
@@ -106,9 +153,17 @@ const LandingPage: React.FC = () => {
     { number: '50+', label: 'Cities Covered' }
   ];
 
+  const nextSlide = () => {
+    setActiveSlide((prev) => (prev + 1) % heroListings.length);
+  };
+
+  const prevSlide = () => {
+    setActiveSlide((prev) => (prev - 1 + heroListings.length) % heroListings.length);
+  };
+
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero Section */}
+      {/* Hero Section with Featured Listing Carousel */}
       <section className="relative bg-gradient-to-br from-neutral-900 via-neutral-800 to-black text-white overflow-hidden">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
@@ -186,7 +241,7 @@ const LandingPage: React.FC = () => {
               {categories.map((category) => (
                 <Link
                   key={category.name}
-                  to={`/listings?categories=${category.name.toUpperCase()}`}
+                  to={`/listings?categories=${category.category}`}
                   className="bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white px-6 py-3 rounded-full transition-all duration-200 flex items-center gap-2"
                 >
                   <category.icon className="w-5 h-5" />
@@ -196,6 +251,90 @@ const LandingPage: React.FC = () => {
             </motion.div>
           </motion.div>
         </div>
+
+        {/* Featured Listings Carousel in Hero */}
+        {!loading && heroListings.length > 0 && (
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="relative"
+            >
+              <div className="overflow-hidden rounded-xl shadow-2xl">
+                <div className="relative">
+                  {heroListings.map((listing, index) => (
+                    <div 
+                      key={listing.id}
+                      className={`transition-opacity duration-500 ${index === activeSlide ? 'block' : 'hidden'}`}
+                    >
+                      <div className="relative h-64 md:h-96 bg-neutral-800">
+                        {listing.images && listing.images[0] && (
+                          <img 
+                            src={listing.images[0].url} 
+                            alt={listing.businessName}
+                            className="w-full h-full object-cover opacity-70"
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+                        <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                          <div className="flex items-center mb-2">
+                            <span className="px-3 py-1 bg-yellow-400 text-black text-xs font-bold rounded-full mr-2">
+                              FEATURED
+                            </span>
+                            <span className="px-3 py-1 bg-black/50 text-white text-xs font-medium rounded-full">
+                              {listing.category.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <h3 className="text-2xl md:text-3xl font-bold mb-2">{listing.businessName}</h3>
+                          <p className="text-white/80 mb-4 line-clamp-2">{listing.description}</p>
+                          <div className="flex items-center text-white/70 mb-4">
+                            <MapPin className="w-4 h-4 mr-1" />
+                            <span className="text-sm">{listing.location}</span>
+                          </div>
+                          <Link 
+                            to={`/listings/${listing.id}`}
+                            className="inline-flex items-center px-4 py-2 bg-yellow-400 text-black rounded-lg font-medium hover:bg-yellow-500 transition-colors"
+                          >
+                            View Details
+                            <ArrowRight className="ml-2 w-4 h-4" />
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Carousel Controls */}
+                <button 
+                  onClick={prevSlide}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button 
+                  onClick={nextSlide}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+                
+                {/* Carousel Indicators */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2">
+                  {heroListings.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setActiveSlide(index)}
+                      className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                        index === activeSlide ? 'bg-yellow-400' : 'bg-white/50 hover:bg-white/70'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </section>
 
       {/* Stats Section */}
@@ -257,7 +396,7 @@ const LandingPage: React.FC = () => {
                 className="group"
               >
                 <Link
-                  to={`/listings?categories=${category.name.toUpperCase()}`}
+                  to={`/listings?categories=${category.category}`}
                   className="block bg-white border border-neutral-200 rounded-2xl p-8 hover:shadow-xl transition-all duration-300 group-hover:border-yellow-400"
                 >
                   <div className={`w-16 h-16 ${category.color} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
@@ -282,8 +421,154 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
+      {/* Featured Listings by Category */}
+      {!loading && Object.keys(featuredListings).length > 0 && (
+        <section className="py-20 bg-neutral-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div 
+              className="text-center mb-16"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+            >
+              <h2 className="text-3xl md:text-4xl font-bold text-neutral-800 mb-4">
+                Featured Listings
+              </h2>
+              <p className="text-xl text-neutral-600 max-w-2xl mx-auto">
+                Explore top listings from each category
+              </p>
+            </motion.div>
+
+            {/* Services */}
+            {featuredListings[ListingCategory.SERVICES]?.length > 0 && (
+              <div className="mb-16">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-neutral-800 flex items-center">
+                    <Wrench className="w-6 h-6 mr-2 text-green-600" />
+                    Services
+                  </h3>
+                  <Link 
+                    to={`/listings?categories=${ListingCategory.SERVICES}`}
+                    className="text-green-600 hover:text-green-700 font-medium flex items-center"
+                  >
+                    View All <ArrowRight className="ml-1 w-4 h-4" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {featuredListings[ListingCategory.SERVICES].map((listing, index) => (
+                    <motion.div
+                      key={listing.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <ListingCard listing={listing} />
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Property */}
+            {featuredListings[ListingCategory.PROPERTY]?.length > 0 && (
+              <div className="mb-16">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-neutral-800 flex items-center">
+                    <Building className="w-6 h-6 mr-2 text-blue-600" />
+                    Property
+                  </h3>
+                  <Link 
+                    to={`/listings?categories=${ListingCategory.PROPERTY}`}
+                    className="text-blue-600 hover:text-blue-700 font-medium flex items-center"
+                  >
+                    View All <ArrowRight className="ml-1 w-4 h-4" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {featuredListings[ListingCategory.PROPERTY].map((listing, index) => (
+                    <motion.div
+                      key={listing.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <ListingCard listing={listing} />
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Stores */}
+            {featuredListings[ListingCategory.STORE]?.length > 0 && (
+              <div className="mb-16">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-neutral-800 flex items-center">
+                    <ShoppingBag className="w-6 h-6 mr-2 text-purple-600" />
+                    Stores
+                  </h3>
+                  <Link 
+                    to={`/listings?categories=${ListingCategory.STORE}`}
+                    className="text-purple-600 hover:text-purple-700 font-medium flex items-center"
+                  >
+                    View All <ArrowRight className="ml-1 w-4 h-4" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {featuredListings[ListingCategory.STORE].map((listing, index) => (
+                    <motion.div
+                      key={listing.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <ListingCard listing={listing} />
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Auto Dealerships */}
+            {featuredListings[ListingCategory.AUTO_DEALERSHIP]?.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-neutral-800 flex items-center">
+                    <Car className="w-6 h-6 mr-2 text-red-600" />
+                    Vehicles
+                  </h3>
+                  <Link 
+                    to={`/listings?categories=${ListingCategory.AUTO_DEALERSHIP}`}
+                    className="text-red-600 hover:text-red-700 font-medium flex items-center"
+                  >
+                    View All <ArrowRight className="ml-1 w-4 h-4" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {featuredListings[ListingCategory.AUTO_DEALERSHIP].map((listing, index) => (
+                    <motion.div
+                      key={listing.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <ListingCard listing={listing} />
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Features Section */}
-      <section className="py-20 bg-neutral-50">
+      <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div 
             className="text-center mb-16"

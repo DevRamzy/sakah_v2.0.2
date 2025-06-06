@@ -3,11 +3,12 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import Button from '../ui/Button'; // Assuming Button component exists
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserProfile } from '../../hooks/useUserProfile';
+import { Search } from 'lucide-react';
 
 // Inline SVG Icons
-const SearchIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+const UserCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
   </svg>
 );
 
@@ -20,12 +21,6 @@ const MenuIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const CloseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const UserCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
   </svg>
 );
 
@@ -61,8 +56,6 @@ const Header: React.FC = () => {
 
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [locationTerm, setLocationTerm] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -80,15 +73,8 @@ const Header: React.FC = () => {
     };
   }, [isProfileMenuOpen]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Navigate to listings page with search params
-    // Example: /listings?q=searchTerm&location=locationTerm
-    const params = new URLSearchParams();
-    if (searchTerm) params.set('q', searchTerm);
-    if (locationTerm) params.set('location', locationTerm);
-    navigate(`/listings?${params.toString()}`);
-    if (isMobileMenuOpen) setIsMobileMenuOpen(false);
+  const handleQuickSearch = () => {
+    navigate('/listings');
   };
 
   const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
@@ -100,37 +86,21 @@ const Header: React.FC = () => {
   return (
     <header className="bg-black text-white sticky top-0 z-50 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-        {/* Top Row: Logo, Search, Business Links, Sign In */}
+        {/* Top Row: Logo, Business Links, Sign In */}
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex-shrink-0">
             <img className="h-8 md:h-10 w-auto" src="/Sakah logo new.png" alt="Sakah" />
           </Link>
 
-          {/* Desktop Search Bar - Hidden on sm screens initially, shown on md+ */}
-          <div className="hidden md:flex flex-grow max-w-xl mx-auto">
-            <form onSubmit={handleSearchSubmit} className="w-full flex items-center space-x-1">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Services, Property, Stores..."
-                className="bg-[#1F2937] text-white placeholder-neutral-300 px-4 py-2 rounded-full focus:outline-none flex-grow min-w-0"
-              />
-              <input
-                type="text"
-                value={locationTerm}
-                onChange={(e) => setLocationTerm(e.target.value)}
-                placeholder="Location"
-                className="bg-[#1F2937] text-white placeholder-neutral-300 px-4 py-2 rounded-full focus:outline-none flex-grow min-w-0 w-1/3"
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                className="bg-yellow-400 text-black hover:bg-yellow-500 rounded-lg px-4 py-2 flex items-center justify-center"
-              >
-                <SearchIcon className="h-5 w-5" />
-              </Button>
-            </form>
+          {/* Quick Search Button */}
+          <div className="hidden md:flex items-center mx-auto">
+            <button 
+              onClick={handleQuickSearch}
+              className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-full text-neutral-300 hover:text-yellow-400 transition-colors"
+            >
+              <Search className="w-4 h-4" />
+              <span className="text-sm">Search listings...</span>
+            </button>
           </div>
 
           {/* Right side actions - Desktop */}
@@ -206,26 +176,16 @@ const Header: React.FC = () => {
       {isMobileMenuOpen && (
         <div className="md:hidden bg-black border-t border-neutral-700">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {/* Mobile Search Bar */}
-            <form onSubmit={handleSearchSubmit} className="mb-4">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search services, property..."
-                className="bg-neutral-800 text-white w-full px-3 py-2 rounded-md focus:ring-1 focus:ring-yellow-400 focus:outline-none mb-2"
-              />
-              <input
-                type="text"
-                value={locationTerm}
-                onChange={(e) => setLocationTerm(e.target.value)}
-                placeholder="Location"
-                className="bg-neutral-800 text-white w-full px-3 py-2 rounded-md focus:ring-1 focus:ring-yellow-400 focus:outline-none mb-2"
-              />
-              <Button type="submit" variant="primary" className="w-full bg-yellow-400 text-black hover:bg-yellow-500 rounded-lg">
-                Search
-              </Button>
-            </form>
+            {/* Mobile Quick Search */}
+            <div className="mb-4">
+              <button
+                onClick={handleQuickSearch}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-neutral-300 hover:text-yellow-400 transition-colors"
+              >
+                <Search className="w-5 h-5" />
+                <span>Search listings...</span>
+              </button>
+            </div>
 
             {/* Mobile Navigation Links */}
             <div className="px-2 pt-2 pb-3 space-y-1">
