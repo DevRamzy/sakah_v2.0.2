@@ -10,6 +10,18 @@ import UnifiedListingDetailPage from './pages/UnifiedListingDetailPage';
 import ListingsPage from './pages/ListingsPage';
 import MainLayout from './components/layout/MainLayout';
 
+// Category Landing Pages
+import ServicesLandingPage from './pages/category/ServicesLandingPage';
+import PropertyLandingPage from './pages/category/PropertyLandingPage';
+import StoresLandingPage from './pages/category/StoresLandingPage';
+import VehiclesLandingPage from './pages/category/VehiclesLandingPage';
+
+// Category Archive Pages
+import ServicesArchivePage from './pages/category/ServicesArchivePage';
+import PropertyArchivePage from './pages/category/PropertyArchivePage';
+import StoresArchivePage from './pages/category/StoresArchivePage';
+import VehiclesArchivePage from './pages/category/VehiclesArchivePage';
+
 function App() {
   const { loading } = useAuth();
 
@@ -27,9 +39,25 @@ function App() {
         {/* Landing page as the main route */}
         <Route element={<MainLayout />}>
           <Route path="/" element={<LandingPage />} />
+          
+          {/* General listings page */}
           <Route path="/listings" element={<ListingsPage />} />
+          
+          {/* Category Landing Pages */}
+          <Route path="/services" element={<ServicesLandingPage />} />
+          <Route path="/property" element={<PropertyLandingPage />} />
+          <Route path="/stores" element={<StoresLandingPage />} />
+          <Route path="/vehicles" element={<VehiclesLandingPage />} />
+          
+          {/* Category Archive Pages */}
+          <Route path="/services/browse" element={<ServicesArchivePage />} />
+          <Route path="/property/browse" element={<PropertyArchivePage />} />
+          <Route path="/stores/browse" element={<StoresArchivePage />} />
+          <Route path="/vehicles/browse" element={<VehiclesArchivePage />} />
+          
           {/* Unified listing detail page handles all listing types */}
           <Route path="/listings/:listingId" element={<UnifiedListingDetailPage />} />
+          
           {/* Legacy property route redirects to unified page */}
           <Route path="/property/:listingId" element={<Navigate to="/listings/:listingId\" replace />} />
         </Route>

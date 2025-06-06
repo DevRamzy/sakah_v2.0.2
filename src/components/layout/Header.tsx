@@ -60,7 +60,9 @@ const Header: React.FC = () => {
   };
 
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+  const categoryMenuRef = useRef<HTMLDivElement>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [locationTerm, setLocationTerm] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -71,14 +73,16 @@ const Header: React.FC = () => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
         setIsProfileMenuOpen(false);
       }
+      if (categoryMenuRef.current && !categoryMenuRef.current.contains(event.target as Node)) {
+        setIsCategoryMenuOpen(false);
+      }
     };
-    if (isProfileMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isProfileMenuOpen]);
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,10 +195,29 @@ const Header: React.FC = () => {
 
         {/* Bottom Row: Navigation Links & SakahSoko Button - Desktop */}
         <div className="hidden md:flex items-center justify-center space-x-2 lg:space-x-4 h-12 border-t border-neutral-700">
-          <NavLink to="/listings?category=SERVICES" className={desktopNavLinkClasses}>Services</NavLink>
-          <NavLink to="/listings?category=PROPERTY" className={desktopNavLinkClasses}>Property</NavLink>
-          <NavLink to="/listings?category=STORE" className={desktopNavLinkClasses}>Stores</NavLink>
-          <NavLink to="/listings?category=AUTO_DEALERSHIP" className={desktopNavLinkClasses}>Vehicles</NavLink>
+          <div ref={categoryMenuRef} className="relative">
+            <button
+              onClick={() => setIsCategoryMenuOpen(!isCategoryMenuOpen)}
+              className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${isCategoryMenuOpen ? 'text-yellow-400' : 'text-neutral-300 hover:text-yellow-400'}`}
+            >
+              Categories
+              <ChevronDownIcon className={`ml-1 h-4 w-4 transition-transform ${isCategoryMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isCategoryMenuOpen && (
+              <div className="absolute left-0 mt-2 w-56 bg-neutral-800 rounded-lg shadow-lg py-1 z-50 ring-1 ring-black ring-opacity-5">
+                <NavLink to="/services" className={({isActive}) => `block px-4 py-2 text-sm ${isActive ? 'text-yellow-400 bg-neutral-700' : 'text-neutral-200 hover:bg-neutral-700 hover:text-yellow-400'}`}>Services</NavLink>
+                <NavLink to="/property" className={({isActive}) => `block px-4 py-2 text-sm ${isActive ? 'text-yellow-400 bg-neutral-700' : 'text-neutral-200 hover:bg-neutral-700 hover:text-yellow-400'}`}>Property</NavLink>
+                <NavLink to="/stores" className={({isActive}) => `block px-4 py-2 text-sm ${isActive ? 'text-yellow-400 bg-neutral-700' : 'text-neutral-200 hover:bg-neutral-700 hover:text-yellow-400'}`}>Stores</NavLink>
+                <NavLink to="/vehicles" className={({isActive}) => `block px-4 py-2 text-sm ${isActive ? 'text-yellow-400 bg-neutral-700' : 'text-neutral-200 hover:bg-neutral-700 hover:text-yellow-400'}`}>Vehicles</NavLink>
+              </div>
+            )}
+          </div>
+          
+          <NavLink to="/services" className={desktopNavLinkClasses}>Services</NavLink>
+          <NavLink to="/property" className={desktopNavLinkClasses}>Property</NavLink>
+          <NavLink to="/stores" className={desktopNavLinkClasses}>Stores</NavLink>
+          <NavLink to="/vehicles" className={desktopNavLinkClasses}>Vehicles</NavLink>
           <NavLink to="/for-businesses" className={desktopNavLinkClasses}>Sakah For Businesses</NavLink>
           <Button variant="primary" size="sm" className="bg-yellow-400 text-black hover:bg-yellow-500 rounded-full">
             <Link to="/sakahsoko" className="text-black">SakahSoko</Link>
@@ -229,15 +252,23 @@ const Header: React.FC = () => {
 
             {/* Mobile Navigation Links */}
             <div className="px-2 pt-2 pb-3 space-y-1">
-              <NavLink to="/listings?category=SERVICES" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>Services</NavLink>
-              <NavLink to="/listings?category=PROPERTY" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>Property</NavLink>
-              <NavLink to="/listings?category=STORE" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>Stores</NavLink>
-              <NavLink to="/listings?category=AUTO_DEALERSHIP" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>Vehicles</NavLink>
+              <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Categories</div>
+              <NavLink to="/services" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>Services</NavLink>
+              <NavLink to="/property" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>Property</NavLink>
+              <NavLink to="/stores" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>Stores</NavLink>
+              <NavLink to="/vehicles" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>Vehicles</NavLink>
+              
+              <div className="text-neutral-400 text-xs uppercase tracking-wider mt-4 mb-2">Browse</div>
+              <NavLink to="/services/browse" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>All Services</NavLink>
+              <NavLink to="/property/browse" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>All Properties</NavLink>
+              <NavLink to="/stores/browse" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>All Stores</NavLink>
+              <NavLink to="/vehicles/browse" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>All Vehicles</NavLink>
+              
               <NavLink to="/for-businesses" className={navLinkClasses} onClick={() => setIsMobileMenuOpen(false)}>Sakah For Businesses</NavLink>
             </div>
             <div className="pt-2">
               <Button variant="primary" size="sm" className="bg-yellow-400 text-black hover:bg-yellow-500 w-full justify-center rounded-full">
-                <Link to="/sakahsoko" className="text-black w-full block">SakahSoko</Link>
+                <Link to="/sakahsoko" className="text-black w-full block" onClick={() => setIsMobileMenuOpen(false)}>SakahSoko</Link>
               </Button>
             </div>
             {isAuthenticated && user ? (
