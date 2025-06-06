@@ -41,6 +41,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Function to fetch user profile from the database
   // Flag to prevent infinite recursion when fetching profile fails due to RLS issues
   const [profileFetchFailed, setProfileFetchFailed] = useState(false);
+  const [profileFetchAttempts, setProfileFetchAttempts] = useState(0);
+  const MAX_PROFILE_FETCH_ATTEMPTS = 2;
 
   const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
     // If we've already detected an infinite recursion issue, return a default profile
@@ -87,6 +89,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             updated_at: new Date().toISOString()
           } as UserProfile;
         }
+        
+        // Increment attempt counter
+        setProfileFetchAttempts(prev => prev + 1);
+        
+        // If we've tried too many times, use a default profile
+        if (profileFetchAttempts >= MAX_PROFILE_FETCH_ATTEMPTS) {
+          console.log('[AuthContext] Max profile fetch attempts reached, using default profile');
+          setProfileFetchFailed(true);
+          return {
+            id: userId,
+            role: 'user',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          } as UserProfile;
+        }
+        
         return null;
       }
 
