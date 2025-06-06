@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getListingById } from '../features/listings/services/listingService';
 import { useAuth } from '../contexts/AuthContext';
-import type { Listing, PropertyListing } from '../types/listings';
+import type { Listing, PropertyListing, ServiceListing, StoreListing, AutoDealershipListing } from '../types/listings';
 import { ListingCategory } from '../types/listings';
 
 // Shared components
@@ -13,10 +13,21 @@ import HeroSection from '../components/shared/HeroSection';
 
 // Property-specific components
 import PropertyDetails from '../components/property/PropertyDetails';
-import MortgageCalculator from '../components/property/MortgageCalculator';
 import PropertyMap from '../components/property/PropertyMap';
 import SimilarProperties from '../components/property/SimilarProperties';
 import ContactAgent from '../components/property/ContactAgent';
+
+// Service-specific components
+import ServiceDetails from '../components/services/ServiceDetails';
+import ContactProvider from '../components/services/ContactProvider';
+
+// Store-specific components
+import StoreDetails from '../components/stores/StoreDetails';
+import ContactStore from '../components/stores/ContactStore';
+
+// Dealership-specific components
+import DealershipDetails from '../components/dealerships/DealershipDetails';
+import ContactDealership from '../components/dealerships/ContactDealership';
 
 // General listing components
 import { 
@@ -84,12 +95,14 @@ const UnifiedListingDetailPage: React.FC = () => {
     alert('Scheduling feature to be implemented!');
   };
 
-  const handleContactAgent = () => {
-    if (listing?.phone) {
-      window.location.href = `tel:${listing.phone}`;
-    } else if (listing?.email) {
-      window.location.href = `mailto:${listing.email}`;
-    }
+  const handleScheduleConsultation = () => {
+    console.log('Schedule consultation clicked');
+    alert('Consultation scheduling feature to be implemented!');
+  };
+
+  const handleScheduleTestDrive = () => {
+    console.log('Schedule test drive clicked');
+    alert('Test drive scheduling feature to be implemented!');
   };
 
   const renderPropertySpecificContent = (propertyListing: PropertyListing) => {
@@ -144,7 +157,6 @@ const UnifiedListingDetailPage: React.FC = () => {
               hoaFees={150}
               taxInfo={{ annualTax: 8500, taxYear: 2024 }}
             />
-            <MortgageCalculator propertyPrice={estimatedPrice} />
             <PropertyMap address={propertyListing.location} nearbyAmenities={mockNearbyAmenities} />
             <SimilarProperties properties={mockSimilarProperties} currentPropertyId={propertyListing.id || ''} />
           </div>
@@ -154,6 +166,123 @@ const UnifiedListingDetailPage: React.FC = () => {
                 agent={mockAgent}
                 propertyName={propertyListing.businessName}
                 onScheduleViewing={handleScheduleViewing}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderServiceSpecificContent = (serviceListing: ServiceListing) => {
+    const mockProvider = {
+      id: 'provider-1',
+      name: 'John Smith',
+      title: 'Professional Service Provider',
+      phone: serviceListing.phone || '+1 (555) 123-4567',
+      email: serviceListing.email || 'john.smith@services.com',
+      image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+      rating: 4.8,
+      reviewCount: 89,
+      yearsExperience: 12,
+      completedJobs: 245,
+      responseTime: '< 2 hours',
+      serviceArea: ['Downtown', 'Midtown', 'Suburbs', 'North District']
+    };
+
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <ServiceDetails
+              description={serviceListing.description}
+              services={serviceListing.services || []}
+              credentials={['Licensed Professional', 'Insured & Bonded', '5-Star Rated']}
+              serviceArea={mockProvider.serviceArea}
+              experience={mockProvider.yearsExperience}
+              specialties={['Emergency Services', 'Same-Day Service', 'Free Estimates']}
+            />
+            <ReviewsTabContent listing={serviceListing} />
+            <GalleryTabContent images={processedImages} />
+          </div>
+          <div className="lg:col-span-1">
+            <div className="sticky top-8">
+              <ContactProvider
+                provider={mockProvider}
+                serviceName={serviceListing.businessName}
+                onScheduleConsultation={handleScheduleConsultation}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderStoreSpecificContent = (storeListing: StoreListing) => {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <StoreDetails
+              description={storeListing.description}
+              storeType="Retail Store"
+              businessHours={storeListing.businessHours || []}
+              socialMedia={{
+                facebook: 'https://facebook.com/store',
+                instagram: 'https://instagram.com/store',
+                website: storeListing.website
+              }}
+              specialOffers={['10% off first purchase', 'Free shipping on orders over $50']}
+              paymentMethods={['Cash', 'Credit Cards', 'Digital Payments', 'Gift Cards']}
+            />
+            <ReviewsTabContent listing={storeListing} />
+            <GalleryTabContent images={processedImages} />
+          </div>
+          <div className="lg:col-span-1">
+            <div className="sticky top-8">
+              <ContactStore
+                storeName={storeListing.businessName}
+                phone={storeListing.phone}
+                email={storeListing.email}
+                address={storeListing.location}
+                businessHours={storeListing.businessHours || []}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDealershipSpecificContent = (dealershipListing: AutoDealershipListing) => {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <DealershipDetails
+              description={dealershipListing.description}
+              brands={dealershipListing.autoDealershipDetails?.brands || []}
+              vehicleTypes={dealershipListing.autoDealershipDetails?.vehicleTypes || []}
+              services={dealershipListing.autoDealershipDetails?.services || []}
+              specialties={dealershipListing.autoDealershipDetails?.specialties || []}
+              yearEstablished={dealershipListing.autoDealershipDetails?.yearEstablished}
+              financingAvailable={dealershipListing.autoDealershipDetails?.financingAvailable || false}
+              certifications={['Authorized Dealer', 'ASE Certified', 'Better Business Bureau A+']}
+              warranties={['Manufacturer Warranty', 'Extended Warranty Available', 'Service Guarantee']}
+            />
+            <ReviewsTabContent listing={dealershipListing} />
+            <GalleryTabContent images={processedImages} />
+          </div>
+          <div className="lg:col-span-1">
+            <div className="sticky top-8">
+              <ContactDealership
+                dealershipName={dealershipListing.businessName}
+                phone={dealershipListing.phone}
+                email={dealershipListing.email}
+                address={dealershipListing.location}
+                businessHours={dealershipListing.businessHours || []}
+                onScheduleTestDrive={handleScheduleTestDrive}
               />
             </div>
           </div>
@@ -180,6 +309,21 @@ const UnifiedListingDetailPage: React.FC = () => {
         </div>
       </div>
     );
+  };
+
+  const renderCategorySpecificContent = (listing: Listing) => {
+    switch (listing.category) {
+      case ListingCategory.PROPERTY:
+        return renderPropertySpecificContent(listing as PropertyListing);
+      case ListingCategory.SERVICES:
+        return renderServiceSpecificContent(listing as ServiceListing);
+      case ListingCategory.STORE:
+        return renderStoreSpecificContent(listing as StoreListing);
+      case ListingCategory.AUTO_DEALERSHIP:
+        return renderDealershipSpecificContent(listing as AutoDealershipListing);
+      default:
+        return renderGeneralListingContent(listing);
+    }
   };
 
   return (
@@ -227,10 +371,7 @@ const UnifiedListingDetailPage: React.FC = () => {
             </HeroSection>
 
             {/* Render category-specific content */}
-            {listing.category === ListingCategory.PROPERTY 
-              ? renderPropertySpecificContent(listing as PropertyListing)
-              : renderGeneralListingContent(listing)
-            }
+            {renderCategorySpecificContent(listing)}
           </>
         )}
       </motion.div>
