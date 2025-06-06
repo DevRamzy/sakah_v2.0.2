@@ -1,13 +1,7 @@
 import { useMemo } from 'react';
 import { getImageUrl, getPlaceholderImage } from '../../utils/imageUtils';
 import type { ListingImage } from '../../types/listings';
-
-export interface ProcessedImage {
-  id: string;
-  url: string;
-  isPrimary: boolean;
-  alt?: string;
-}
+import type { ProcessedImage } from '../../types/images';
 
 export const useImageProcessor = (images?: ListingImage[]): ProcessedImage[] => {
   return useMemo(() => {
@@ -55,6 +49,7 @@ export const useImageProcessor = (images?: ListingImage[]): ProcessedImage[] => 
           alt: image.alt || `Image ${index + 1}`
         };
       } catch (error) {
+        console.error('Error processing image:', error);
         return {
           id: image.id || `img-${index}`,
           url: getPlaceholderImage(),

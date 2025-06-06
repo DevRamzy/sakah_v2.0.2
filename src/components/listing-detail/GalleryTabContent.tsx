@@ -1,12 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Image as ImageIcon, Camera } from 'lucide-react';
 import type { ProcessedImage } from '../../types/images';
+import ImageGallery from '../gallery/ImageGallery';
 
 interface GalleryTabContentProps {
   images: ProcessedImage[];
 }
 
 const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ images }) => {
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
+  const openGallery = (index: number) => {
+    setSelectedImageIndex(index);
+    setIsGalleryOpen(true);
+  };
+
   if (!images || images.length === 0) {
     return (
       <div className="space-y-8">
@@ -32,11 +41,14 @@ const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ images }) => {
       {/* Featured Image */}
       {images.length > 0 && (
         <div className="mb-6">
-          <div className="aspect-w-16 aspect-h-9 overflow-hidden rounded-lg">
+          <div 
+            className="aspect-w-16 aspect-h-9 overflow-hidden rounded-lg cursor-pointer"
+            onClick={() => openGallery(images.findIndex(img => img.isPrimary) || 0)}
+          >
             <img 
               src={images.find(img => img.isPrimary)?.url || images[0].url} 
               alt="Featured" 
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
             />
           </div>
           <p className="text-sm text-neutral-500 mt-2">Featured Image</p>
@@ -46,12 +58,16 @@ const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ images }) => {
       {/* Image Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {images.map((image, index) => (
-          <div key={index} className="group relative">
+          <div 
+            key={index} 
+            className="group relative cursor-pointer"
+            onClick={() => openGallery(index)}
+          >
             <div className="aspect-w-1 aspect-h-1 overflow-hidden rounded-lg bg-neutral-100">
               <img 
                 src={image.url} 
-                alt={`Gallery image ${index + 1}`} 
-                className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                alt={image.alt || `Gallery image ${index + 1}`} 
+                className="w-full h-full object-cover group-hover:opacity-90 group-hover:scale-105 transition-all duration-300"
               />
             </div>
             {image.isPrimary && (
@@ -63,13 +79,14 @@ const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ images }) => {
         ))}
       </div>
       
-      {/* Download All Button */}
-      <div className="mt-8 text-center">
-        <button className="bg-neutral-100 text-neutral-700 font-medium px-6 py-3 rounded-lg hover:bg-neutral-200 transition-colors flex items-center justify-center mx-auto">
-          <ImageIcon className="w-5 h-5 mr-2" />
-          Download All Images
-        </button>
-      </div>
+      {/* Full-screen Gallery */}
+      {isGalleryOpen && (
+        <ImageGallery 
+          images={images} 
+          initialImageIndex={selectedImageIndex} 
+          onClose={() => setIsGalleryOpen(false)}
+        />
+      )}
     </div>
   );
 };

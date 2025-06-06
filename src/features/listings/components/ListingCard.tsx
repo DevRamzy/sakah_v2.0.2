@@ -3,71 +3,23 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import type { BaseListing } from '../../../types/listings';
 import { ListingCategory } from '../../../types/listings';
-import { MapPin, Star } from 'lucide-react';
+import { MapPin, Star, Clock, DollarSign, Home, Wrench, ShoppingBag, Car, Calendar } from 'lucide-react';
+import { getImageUrl, getPlaceholderImage } from '../../../utils/imageUtils';
 
 interface ListingCardProps {
   listing: BaseListing;
   viewMode?: 'grid' | 'list';
+  featured?: boolean;
 }
 
-const DefaultImage = ({ category, viewMode }: { category: ListingCategory, viewMode?: 'grid' | 'list' }) => {
-  // Basic placeholder based on category - can be expanded with actual SVGs or themed images
-  let bgColor = 'bg-neutral-200';
-  let textColor = 'text-neutral-600';
-  let text = 'Image';
-
-  switch (category) {
-    case ListingCategory.PROPERTY:
-      bgColor = 'bg-blue-100';
-      textColor = 'text-blue-700';
-      text = 'Property';
-      break;
-    case ListingCategory.SERVICES:
-      bgColor = 'bg-green-100';
-      textColor = 'text-green-700';
-      text = 'Service';
-      break;
-    case ListingCategory.STORE:
-      bgColor = 'bg-amber-100';
-      textColor = 'text-amber-700';
-      text = 'Store';
-      break;
-    case ListingCategory.AUTO_DEALERSHIP:
-      bgColor = 'bg-red-100';
-      textColor = 'text-red-700';
-      text = 'Auto';
-      break;
-  }
-
-  const heightClass = viewMode === 'list' ? 'h-full' : 'h-48';
-  const roundedClass = viewMode === 'list' ? 'rounded-l-lg rounded-t-none' : 'rounded-t-lg';
-
-  return (
-    <div className={`w-full ${heightClass} flex items-center justify-center ${bgColor} ${roundedClass}`}>
-      <span className={`text-xl font-semibold ${textColor}`}>{text}</span>
-    </div>
-  );
-};
-
-// Helper function to get category label and color
-const getCategoryInfo = (category: ListingCategory) => {
-  switch (category) {
-    case ListingCategory.PROPERTY:
-      return { label: 'Property', bgColor: 'bg-blue-500', textColor: 'text-white' };
-    case ListingCategory.SERVICES:
-      return { label: 'Services', bgColor: 'bg-green-500', textColor: 'text-white' };
-    case ListingCategory.STORE:
-      return { label: 'Stores', bgColor: 'bg-amber-400', textColor: 'text-black' };
-    case ListingCategory.AUTO_DEALERSHIP:
-      return { label: 'Automotive', bgColor: 'bg-red-500', textColor: 'text-white' };
-    default:
-      return { label: 'Business', bgColor: 'bg-neutral-500', textColor: 'text-white' };
-  }
-};
-
-const ListingCard: React.FC<ListingCardProps> = ({ listing, viewMode = 'grid' }) => {
-  const primaryImage = listing.images?.find(img => img.isPrimary)?.url || listing.images?.[0]?.url;
-  const { label: categoryLabel, bgColor: categoryBgColor, textColor: categoryTextColor } = getCategoryInfo(listing.category);
+const ListingCard: React.FC<ListingCardProps> = ({ 
+  listing, 
+  viewMode = 'grid',
+  featured = false
+}) => {
+  const primaryImage = listing.images?.find(img => img.isPrimary)?.url || 
+                       listing.images?.[0]?.url || 
+                       getPlaceholderImage();
   
   // Mock rating data (would come from the database in a real implementation)
   const rating = {
@@ -77,33 +29,159 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, viewMode = 'grid' })
   
   const isListView = viewMode === 'list';
 
+  // Get category-specific details and styling
+  const getCategoryDetails = () => {
+    switch (listing.category) {
+      case ListingCategory.PROPERTY:
+        return {
+          icon: Home,
+          label: 'Property',
+          bgColor: 'bg-blue-500',
+          textColor: 'text-white',
+          hoverColor: 'group-hover:bg-blue-600',
+          borderColor: 'border-blue-500',
+          accentColor: 'text-blue-600'
+        };
+      case ListingCategory.SERVICES:
+        return {
+          icon: Wrench,
+          label: 'Services',
+          bgColor: 'bg-green-500',
+          textColor: 'text-white',
+          hoverColor: 'group-hover:bg-green-600',
+          borderColor: 'border-green-500',
+          accentColor: 'text-green-600'
+        };
+      case ListingCategory.STORE:
+        return {
+          icon: ShoppingBag,
+          label: 'Store',
+          bgColor: 'bg-purple-500',
+          textColor: 'text-white',
+          hoverColor: 'group-hover:bg-purple-600',
+          borderColor: 'border-purple-500',
+          accentColor: 'text-purple-600'
+        };
+      case ListingCategory.AUTO_DEALERSHIP:
+        return {
+          icon: Car,
+          label: 'Vehicles',
+          bgColor: 'bg-red-500',
+          textColor: 'text-white',
+          hoverColor: 'group-hover:bg-red-600',
+          borderColor: 'border-red-500',
+          accentColor: 'text-red-600'
+        };
+      default:
+        return {
+          icon: Home,
+          label: 'Listing',
+          bgColor: 'bg-yellow-500',
+          textColor: 'text-black',
+          hoverColor: 'group-hover:bg-yellow-600',
+          borderColor: 'border-yellow-500',
+          accentColor: 'text-yellow-600'
+        };
+    }
+  };
+
+  const categoryDetails = getCategoryDetails();
+  const CategoryIcon = categoryDetails.icon;
+
+  // Render category-specific details
+  const renderCategorySpecificDetails = () => {
+    switch (listing.category) {
+      case ListingCategory.PROPERTY:
+        return (
+          <div className="flex items-center gap-3 text-sm text-neutral-600">
+            <div className="flex items-center">
+              <Home className="w-4 h-4 mr-1" />
+              <span>{listing.subcategory || 'Property'}</span>
+            </div>
+            <div className="flex items-center">
+              <Calendar className="w-4 h-4 mr-1" />
+              <span>Available Now</span>
+            </div>
+          </div>
+        );
+      case ListingCategory.SERVICES:
+        return (
+          <div className="flex items-center gap-3 text-sm text-neutral-600">
+            <div className="flex items-center">
+              <Wrench className="w-4 h-4 mr-1" />
+              <span>{listing.subcategory || 'Service'}</span>
+            </div>
+            <div className="flex items-center">
+              <Clock className="w-4 h-4 mr-1" />
+              <span>Quick Response</span>
+            </div>
+          </div>
+        );
+      case ListingCategory.STORE:
+        return (
+          <div className="flex items-center gap-3 text-sm text-neutral-600">
+            <div className="flex items-center">
+              <ShoppingBag className="w-4 h-4 mr-1" />
+              <span>{listing.subcategory || 'Store'}</span>
+            </div>
+            <div className="flex items-center">
+              <Clock className="w-4 h-4 mr-1" />
+              <span>Open Now</span>
+            </div>
+          </div>
+        );
+      case ListingCategory.AUTO_DEALERSHIP:
+        return (
+          <div className="flex items-center gap-3 text-sm text-neutral-600">
+            <div className="flex items-center">
+              <Car className="w-4 h-4 mr-1" />
+              <span>{listing.subcategory || 'Dealership'}</span>
+            </div>
+            <div className="flex items-center">
+              <DollarSign className="w-4 h-4 mr-1" />
+              <span>Financing Available</span>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   if (isListView) {
     return (
       <motion.div 
-        className="bg-white shadow-md rounded-lg overflow-hidden flex flex-row w-full" 
+        className={`bg-white shadow-md rounded-lg overflow-hidden flex flex-row w-full group ${featured ? 'ring-2 ring-yellow-400' : ''}`}
         whileHover={{ scale: 1.02, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' }}
         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
       >
         <div className="relative block w-1/3 md:w-48 flex-shrink-0">
-          <Link to={`/listings/${listing.id}`}>
-            {primaryImage ? (
+          <Link to={`/listings/${listing.id}`} className="block h-full">
+            <div className="w-full h-full overflow-hidden">
               <img 
                 src={primaryImage} 
                 alt={listing.businessName} 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = getPlaceholderImage();
+                }}
               />
-            ) : (
-              <DefaultImage category={listing.category} viewMode="list" />
+            </div>
+            <div className={`absolute top-0 left-0 ${categoryDetails.bgColor} ${categoryDetails.textColor} text-xs font-medium py-1 px-2 rounded-br-md ${categoryDetails.hoverColor} transition-colors`}>
+              {categoryDetails.label}
+            </div>
+            {featured && (
+              <div className="absolute top-0 right-0 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-bl-md">
+                FEATURED
+              </div>
             )}
           </Link>
-          <div className={`absolute top-0 left-0 ${categoryBgColor} ${categoryTextColor} text-xs font-medium py-1 px-2 rounded-br-md`}>
-            {categoryLabel}
-          </div>
         </div>
         <div className="p-4 flex flex-col flex-grow">
           <div className="flex justify-between items-start mb-1">
             <h3 className="text-lg font-semibold text-neutral-800 truncate" title={listing.businessName}>
-              <Link to={`/listings/${listing.id}`} className="hover:text-yellow-500">
+              <Link to={`/listings/${listing.id}`} className={`hover:${categoryDetails.accentColor}`}>
                 {listing.businessName}
               </Link>
             </h3>
@@ -119,11 +197,22 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, viewMode = 'grid' })
             <span className="truncate" title={listing.location}>{listing.location}</span>
           </p>
           
+          {renderCategorySpecificDetails()}
+          
           {listing.description && (
-            <p className="text-sm text-neutral-600 line-clamp-2" title={listing.description}>
+            <p className="text-sm text-neutral-600 mt-2 line-clamp-2" title={listing.description}>
               {listing.description}
             </p>
           )}
+          
+          <div className="mt-auto pt-3 flex justify-end">
+            <Link 
+              to={`/listings/${listing.id}`}
+              className={`inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md ${categoryDetails.bgColor} ${categoryDetails.textColor} hover:opacity-90 transition-opacity`}
+            >
+              View Details
+            </Link>
+          </div>
         </div>
       </motion.div>
     );
@@ -132,31 +221,38 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, viewMode = 'grid' })
   // Grid View (default)
   return (
     <motion.div 
-      className="bg-white shadow-md rounded-lg overflow-hidden flex flex-col h-full" 
+      className={`bg-white shadow-md rounded-lg overflow-hidden flex flex-col h-full group ${featured ? 'ring-2 ring-yellow-400' : ''}`}
       whileHover={{ scale: 1.02, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' }}
       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
     >
       <div className="relative">
-        <Link to={`/listings/${listing.id}`}>
-          {primaryImage ? (
+        <Link to={`/listings/${listing.id}`} className="block">
+          <div className="w-full h-48 overflow-hidden">
             <img 
               src={primaryImage} 
               alt={listing.businessName} 
-              className="w-full h-48 object-cover"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = getPlaceholderImage();
+              }}
             />
-          ) : (
-            <DefaultImage category={listing.category} viewMode="grid" />
+          </div>
+          <div className={`absolute top-0 left-0 ${categoryDetails.bgColor} ${categoryDetails.textColor} text-xs font-medium py-1 px-2 rounded-br-md ${categoryDetails.hoverColor} transition-colors`}>
+            {categoryDetails.label}
+          </div>
+          {featured && (
+            <div className="absolute top-0 right-0 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-bl-md">
+              FEATURED
+            </div>
           )}
         </Link>
-        <div className={`absolute top-0 left-0 ${categoryBgColor} ${categoryTextColor} text-xs font-medium py-1 px-2 rounded-br-md`}>
-          {categoryLabel}
-        </div>
       </div>
       
       <div className="p-4 flex flex-col flex-grow">
         <div className="flex justify-between items-start mb-1">
           <h3 className="text-lg font-semibold text-neutral-800 truncate" title={listing.businessName}>
-            <Link to={`/listings/${listing.id}`} className="hover:text-yellow-500">
+            <Link to={`/listings/${listing.id}`} className={`hover:${categoryDetails.accentColor}`}>
               {listing.businessName}
             </Link>
           </h3>
@@ -172,11 +268,23 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, viewMode = 'grid' })
           <span className="truncate" title={listing.location}>{listing.location}</span>
         </p>
         
+        {renderCategorySpecificDetails()}
+        
         {listing.description && (
-          <p className="text-sm text-neutral-600 mb-3 line-clamp-2" title={listing.description}>
+          <p className="text-sm text-neutral-600 mt-2 mb-3 line-clamp-2" title={listing.description}>
             {listing.description}
           </p>
         )}
+        
+        <div className="mt-auto pt-3 border-t border-neutral-100">
+          <Link 
+            to={`/listings/${listing.id}`}
+            className={`w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md ${categoryDetails.bgColor} ${categoryDetails.textColor} hover:opacity-90 transition-opacity`}
+          >
+            <CategoryIcon className="w-4 h-4 mr-2" />
+            View Details
+          </Link>
+        </div>
       </div>
     </motion.div>
   );

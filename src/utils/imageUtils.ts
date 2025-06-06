@@ -2,12 +2,6 @@ import { supabase } from '../lib/supabaseClient';
 import type { ListingImage } from '../types/listings';
 
 /**
- * Get a properly formatted public URL for an image stored in Supabase
- * @param storagePath The storage path of the image in Supabase
- * @param bucket The storage bucket name (defaults to 'listing_images')
- * @returns The complete public URL to the image
- */
-/**
  * Get a list of available buckets in Supabase storage
  * This is useful for debugging purposes
  */
@@ -28,23 +22,14 @@ export const listBuckets = async (): Promise<string[]> => {
 /**
  * Get a properly formatted public URL for an image stored in Supabase
  * @param storagePath The storage path of the image in Supabase
- * @param bucket The storage bucket name (defaults to 'listings')
- * @returns The complete public URL to the image
- */
-/**
- * Get a properly formatted public URL for an image stored in Supabase
- * @param storagePath The storage path of the image in Supabase
  * @param bucket The storage bucket name (defaults to 'listing_images')
  * @returns The complete public URL to the image
  */
 export const getImageUrl = (rawStoragePath: string, bucket = 'listing_images'): string => {
   try {
     if (!rawStoragePath) {
-      console.warn('[getImageUrl] Empty rawStoragePath provided, returning placeholder.');
       return getPlaceholderImage();
     }
-
-    console.log('[getImageUrl] Received rawStoragePath:', rawStoragePath, 'Target Bucket:', bucket);
 
     // Normalize the path: first, extract the actual filename by stripping all leading bucket prefixes.
     let filename = rawStoragePath;
@@ -54,30 +39,18 @@ export const getImageUrl = (rawStoragePath: string, bucket = 'listing_images'): 
     while (filename.startsWith(bucketPrefix)) {
       filename = filename.substring(bucketPrefix.length);
     }
-    // Now, 'filename' should be the bare filename, e.g., "1749042267624.jpg"
-    console.log('[getImageUrl] Extracted bare filename:', filename);
 
     // Construct the path that Supabase needs for getPublicUrl.
-    // This must be "listing_images/filename.jpg" to achieve the desired final URL structure.
-    const pathForSupabase = bucketPrefix + filename;
-    console.log('[getImageUrl] Constructed pathForSupabase (to be passed to getPublicUrl):', pathForSupabase);
+    const pathForSupabase = filename;
 
     const { data } = supabase.storage
       .from(bucket)
       .getPublicUrl(pathForSupabase);
 
     if (!data || !data.publicUrl) {
-      console.warn('[getImageUrl] Supabase returned no publicUrl data or an empty URL.', {
-        rawStoragePath,
-        filename,
-        pathForSupabase,
-        bucket,
-        returnedUrl: data?.publicUrl,
-      });
       return getPlaceholderImage();
     }
 
-    console.log('[getImageUrl] Successfully generated URL:', data.publicUrl);
     return data.publicUrl;
 
   } catch (error: any) {

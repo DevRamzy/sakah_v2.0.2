@@ -33,13 +33,14 @@ const ListingStateHandler: React.FC<ListingStateHandlerProps> = ({
       <div className="flex flex-col justify-center items-center min-h-screen bg-neutral-100 p-4 text-center">
         <ShieldCheck className="w-16 h-16 text-red-500 mb-4" />
         <h1 className="text-3xl font-bold text-red-700 mb-4">Access Denied</h1>
-        <p className="text-lg text-neutral-700 mb-8">
+        <p className="text-lg text-neutral-700 mb-8 max-w-md">
           You do not have permission to view this listing as it is currently a draft.
         </p>
         <Link 
           to={backPath} 
-          className="px-6 py-2 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-600 transition-colors"
+          className="px-6 py-2 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-600 transition-colors flex items-center gap-2"
         >
+          <ArrowLeft className="w-5 h-5" />
           Back to Listings
         </Link>
       </div>
@@ -51,11 +52,12 @@ const ListingStateHandler: React.FC<ListingStateHandlerProps> = ({
       <div className="flex flex-col justify-center items-center min-h-screen bg-neutral-100 p-4 text-center">
         <Info className="w-16 h-16 text-red-500 mb-4" />
         <h1 className="text-3xl font-bold text-red-700 mb-4">Error</h1>
-        <p className="text-lg text-neutral-700 mb-8">{error || 'Listing not found.'}</p>
+        <p className="text-lg text-neutral-700 mb-8 max-w-md">{error || 'Listing not found.'}</p>
         <Link 
           to={backPath} 
-          className="px-6 py-2 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-600 transition-colors"
+          className="px-6 py-2 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-600 transition-colors flex items-center gap-2"
         >
+          <ArrowLeft className="w-5 h-5" />
           Back to Listings
         </Link>
       </div>

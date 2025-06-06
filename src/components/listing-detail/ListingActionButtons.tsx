@@ -109,7 +109,7 @@ const ListingActionButtons: React.FC<ListingActionButtonsProps> = ({
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <Phone className="w-5 h-5 text-white" />
+                  <Phone className="w-5 h-5 text-black" />
                 </motion.button>
               </motion.div>
               
@@ -148,7 +148,10 @@ const ListingActionButtons: React.FC<ListingActionButtonsProps> = ({
                     navigator.share?.({ 
                       title: 'Check out this listing', 
                       url: window.location.href 
-                    }).catch(() => {});
+                    }).catch(() => {
+                      navigator.clipboard.writeText(window.location.href);
+                      alert('Link copied to clipboard!');
+                    });
                     setExpanded(false);
                   }}
                   className="w-14 h-14 bg-neutral-800 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:bg-neutral-700 transition-all duration-300"
