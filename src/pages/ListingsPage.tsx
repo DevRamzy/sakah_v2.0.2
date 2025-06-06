@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { getPublishedListings } from '../features/listings/services/listingService';
 import type { BaseListing } from '../types/listings';
 import { motion } from 'framer-motion';
@@ -9,7 +9,6 @@ import ListingCardSkeleton from '../features/listings/components/ListingCardSkel
 import Button from '../components/ui/Button';
 
 const LISTINGS_PER_PAGE = 12;
-const CAROUSEL_SCROLL_AMOUNT = 300; // pixels
 
 // Icons
 const SearchIcon = () => (
@@ -28,18 +27,6 @@ const MapPinIcon = () => (
 const FilterIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
-  </svg>
-);
-
-const ChevronLeftIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
-  </svg>
-);
-
-const ChevronRightIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
   </svg>
 );
 
@@ -76,17 +63,12 @@ const EmptyBoxIcon = () => (
 const ListingsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<BaseListing[]>([]);
-  const [featuredListings, setFeaturedListings] = useState<BaseListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalListings, setTotalListings] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
-
-  const carouselRef = useRef<HTMLDivElement | null>(null);
-  const [canScrollPrev, setCanScrollPrev] = useState(false);
-  const [canScrollNext, setCanScrollNext] = useState(false);
 
   // Initialize state from URL parameters
   const initialSearchTerm = searchParams.get('q') || '';
@@ -99,28 +81,6 @@ const ListingsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [locationTerm, setLocationTerm] = useState(initialLocationTerm);
   const [selectedCategory, setSelectedCategory] = useState<ListingCategory | null>(initialCategory);
-
-  const checkCarouselScrollability = useCallback(() => {
-    const element = carouselRef.current;
-    if (element) {
-      setCanScrollPrev(element.scrollLeft > 0);
-      setCanScrollNext(element.scrollLeft < element.scrollWidth - element.clientWidth - 1);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!loading && featuredListings.length > 0) {
-      checkCarouselScrollability();
-      const carouselElement = carouselRef.current;
-      carouselElement?.addEventListener('scroll', checkCarouselScrollability);
-      window.addEventListener('resize', checkCarouselScrollability);
-
-      return () => {
-        carouselElement?.removeEventListener('scroll', checkCarouselScrollability);
-        window.removeEventListener('resize', checkCarouselScrollability);
-      };
-    }
-  }, [loading, featuredListings, checkCarouselScrollability]);
 
   const fetchListingsData = useCallback(async (pageToFetch: number, currentSearchTerm: string, currentLocationTerm: string, currentCategory: ListingCategory | null) => {
     if (pageToFetch === 1) {
@@ -144,7 +104,6 @@ const ListingsPage: React.FC = () => {
 
       if (pageToFetch === 1) {
         setListings(listingsData);
-        setFeaturedListings(listingsData.slice(0, 5));
       } else {
         setListings(prevListings => [...prevListings, ...listingsData]);
       }
@@ -178,11 +137,6 @@ const ListingsPage: React.FC = () => {
     }
   }, [searchTerm, locationTerm, selectedCategory, setSearchParams, searchParams]);
 
-  const uniqueCategories = useMemo(() => 
-    Array.from(new Set(listings.map((listing: BaseListing) => listing.category)))
-    .sort((a,b) => a.localeCompare(b)) 
-  , [listings]);
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
@@ -211,53 +165,132 @@ const ListingsPage: React.FC = () => {
     fetchListingsData(1, searchTerm, locationTerm, selectedCategory);
   };
 
-  const handleScrollFeatured = (direction: 'prev' | 'next') => {
-    const element = carouselRef.current;
-    if (element) {
-      const scrollVal = direction === 'prev' ? -CAROUSEL_SCROLL_AMOUNT : CAROUSEL_SCROLL_AMOUNT;
-      element.scrollBy({ left: scrollVal, behavior: 'smooth' });
+  // Category cards for the hero section
+  const categoryCards = [
+    {
+      title: 'Services',
+      description: 'Find professional service providers',
+      icon: '🛠️',
+      color: 'from-green-500 to-green-600',
+      textColor: 'text-green-100',
+      path: '/services'
+    },
+    {
+      title: 'Property',
+      description: 'Discover homes and commercial spaces',
+      icon: '🏠',
+      color: 'from-blue-500 to-blue-600',
+      textColor: 'text-blue-100',
+      path: '/property'
+    },
+    {
+      title: 'Stores',
+      description: 'Shop at local businesses',
+      icon: '🛍️',
+      color: 'from-purple-500 to-purple-600',
+      textColor: 'text-purple-100',
+      path: '/stores'
+    },
+    {
+      title: 'Vehicles',
+      description: 'Browse dealerships and vehicles',
+      icon: '🚗',
+      color: 'from-red-500 to-red-600',
+      textColor: 'text-red-100',
+      path: '/vehicles'
     }
-  };
+  ];
 
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col font-sans">
-      {/* Enhanced Search and Filter Header */}
-      <section className="bg-white border-b border-neutral-200 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* Search Form */}
-          <form onSubmit={handleSearch} className="mb-6">
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="flex-1 relative">
-                <SearchIcon />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search for services, properties, stores..."
-                  className="w-full pl-12 pr-4 py-4 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-neutral-800 placeholder-neutral-500"
-                />
+      {/* Hero Section with Category Cards */}
+      <section className="bg-gradient-to-br from-yellow-400 to-yellow-500 text-black py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-12"
+          >
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+              All Listings
+            </h1>
+            <p className="text-xl text-black/80 mb-8 max-w-3xl mx-auto">
+              Browse all listings or use our search and filters to find exactly what you're looking for
+            </p>
+            
+            {/* Search Form */}
+            <form onSubmit={handleSearch} className="max-w-4xl mx-auto mb-12">
+              <div className="bg-white rounded-2xl p-2 shadow-xl">
+                <div className="flex flex-col md:flex-row gap-2">
+                  <div className="flex-1 relative">
+                    <SearchIcon />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="What are you looking for?"
+                      className="w-full pl-12 pr-4 py-4 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-neutral-800 placeholder-neutral-500"
+                    />
+                  </div>
+                  <div className="flex-1 relative">
+                    <MapPinIcon />
+                    <input
+                      type="text"
+                      value={locationTerm}
+                      onChange={(e) => setLocationTerm(e.target.value)}
+                      placeholder="Enter location..."
+                      className="w-full pl-12 pr-4 py-4 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-neutral-800 placeholder-neutral-500"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="bg-black hover:bg-neutral-800 text-yellow-400 font-semibold py-4 px-8 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 lg:w-auto w-full"
+                  >
+                    <SearchIcon />
+                    Search
+                  </Button>
+                </div>
               </div>
-              <div className="flex-1 relative">
-                <MapPinIcon />
-                <input
-                  type="text"
-                  value={locationTerm}
-                  onChange={(e) => setLocationTerm(e.target.value)}
-                  placeholder="Enter location..."
-                  className="w-full pl-12 pr-4 py-4 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-neutral-800 placeholder-neutral-500"
-                />
-              </div>
-              <Button
-                type="submit"
-                className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-4 px-8 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 lg:w-auto w-full"
-              >
-                <SearchIcon />
-                Search
-              </Button>
+            </form>
+            
+            {/* Category Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+              {categoryCards.map((card, index) => (
+                <motion.div
+                  key={card.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ scale: 1.05 }}
+                  className="group"
+                >
+                  <Link
+                    to={card.path}
+                    className={`block bg-gradient-to-br ${card.color} rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 text-white h-full`}
+                  >
+                    <div className="text-4xl mb-4">{card.icon}</div>
+                    <h3 className="text-xl font-semibold mb-2">
+                      {card.title}
+                    </h3>
+                    <p className={`${card.textColor} mb-4`}>
+                      {card.description}
+                    </p>
+                    <div className="flex items-center justify-end mt-2">
+                      <span className="text-sm font-medium text-white group-hover:underline">
+                        Explore →
+                      </span>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
             </div>
-          </form>
+          </motion.div>
+        </div>
+      </section>
 
-          {/* Filter Toggle and Results Count */}
+      {/* Filter Toggle and Results Count */}
+      <section className="bg-white border-b border-neutral-200 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <Button
@@ -323,53 +356,6 @@ const ListingsPage: React.FC = () => {
       </section>
 
       <main className="flex-grow">
-        {/* Featured Listings Carousel */}
-        {!loading && featuredListings.length > 0 && (
-          <section className="py-12 md:py-16 bg-white border-b border-neutral-200">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <h2 className="text-3xl font-bold text-neutral-800 mb-10 text-center">Featured Listings</h2>
-              <div className="relative group">
-                {canScrollPrev && (
-                  <button 
-                    onClick={() => handleScrollFeatured('prev')}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white/70 hover:bg-white rounded-full shadow-md hover:shadow-lg transition-all duration-200 transform group-hover:opacity-100 opacity-0 focus:opacity-100 -ml-4 disabled:opacity-30 disabled:cursor-not-allowed"
-                    aria-label="Previous featured listings"
-                    disabled={!canScrollPrev}
-                  >
-                    <ChevronLeftIcon />
-                  </button>
-                )}
-                <div 
-                  ref={carouselRef} 
-                  className="flex overflow-x-auto space-x-6 pb-6 scrollbar-hide"
-                >
-                  {featuredListings.map(listing => (
-                    <motion.div 
-                      key={`featured-${listing.id}`}
-                      className="flex-shrink-0 w-72 md:w-[300px] transform transition-all duration-300 hover:scale-105"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
-                    >
-                      <ListingCard listing={listing} /> 
-                    </motion.div>
-                  ))}
-                </div>
-                {canScrollNext && (
-                  <button 
-                    onClick={() => handleScrollFeatured('next')}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white/70 hover:bg-white rounded-full shadow-md hover:shadow-lg transition-all duration-200 transform group-hover:opacity-100 opacity-0 focus:opacity-100 -mr-4 disabled:opacity-30 disabled:cursor-not-allowed"
-                    aria-label="Next featured listings"
-                    disabled={!canScrollNext}
-                  >
-                    <ChevronRightIcon />
-                  </button>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
-
         {/* Main Listings Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
           {/* Listings Display Area */}
