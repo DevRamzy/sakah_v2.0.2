@@ -41,7 +41,8 @@ export const getImageUrl = (rawStoragePath: string, bucket = 'listing_images'): 
     }
 
     // Construct the path that Supabase needs for getPublicUrl.
-    const pathForSupabase = filename;
+    // For Supabase storage, we need to include the bucket name in the path
+    const pathForSupabase = `${bucket}/${filename}`;
 
     const { data } = supabase.storage
       .from(bucket)
