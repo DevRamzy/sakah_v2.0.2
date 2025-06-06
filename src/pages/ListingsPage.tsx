@@ -12,6 +12,25 @@ const LISTINGS_PER_PAGE = 12;
 const CAROUSEL_SCROLL_AMOUNT = 300; // pixels
 
 // Icons
+const SearchIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+  </svg>
+);
+
+const MapPinIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+  </svg>
+);
+
+const FilterIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+  </svg>
+);
+
 const ChevronLeftIcon = () => (
   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
@@ -21,6 +40,18 @@ const ChevronLeftIcon = () => (
 const ChevronRightIcon = () => (
   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+  </svg>
+);
+
+const ChevronDownIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+  </svg>
+);
+
+const ChevronUpIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7"></path>
   </svg>
 );
 
@@ -51,25 +82,29 @@ const ListingsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalListings, setTotalListings] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
 
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
 
+  // Initialize state from URL parameters
   const initialSearchTerm = searchParams.get('q') || '';
+  const initialLocationTerm = searchParams.get('location') || '';
   const initialCategoryParam = searchParams.get('categories');
   const initialCategory = initialCategoryParam && Object.values(ListingCategory).includes(initialCategoryParam.toUpperCase() as ListingCategory) 
     ? initialCategoryParam.toUpperCase() as ListingCategory 
     : null;
 
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [locationTerm, setLocationTerm] = useState(initialLocationTerm);
   const [selectedCategory, setSelectedCategory] = useState<ListingCategory | null>(initialCategory);
 
   const checkCarouselScrollability = useCallback(() => {
     const element = carouselRef.current;
     if (element) {
       setCanScrollPrev(element.scrollLeft > 0);
-      setCanScrollNext(element.scrollLeft < element.scrollWidth - element.clientWidth -1); // -1 for precision issues
+      setCanScrollNext(element.scrollLeft < element.scrollWidth - element.clientWidth - 1);
     }
   }, []);
 
@@ -87,8 +122,7 @@ const ListingsPage: React.FC = () => {
     }
   }, [loading, featuredListings, checkCarouselScrollability]);
 
-
-  const fetchListingsData = useCallback(async (pageToFetch: number, currentSearchTerm: string, currentCategory: ListingCategory | null) => {
+  const fetchListingsData = useCallback(async (pageToFetch: number, currentSearchTerm: string, currentLocationTerm: string, currentCategory: ListingCategory | null) => {
     if (pageToFetch === 1) {
       setLoading(true);
     } else {
@@ -101,10 +135,10 @@ const ListingsPage: React.FC = () => {
         page: pageToFetch,
         limit: LISTINGS_PER_PAGE,
         searchTerm: currentSearchTerm.trim() || undefined,
+        location: currentLocationTerm.trim() || undefined,
         category: currentCategory || undefined,
       });
       
-      // Extract data from response
       const listingsData = response.listingsData || [];
       const totalCount = response.totalCount || 0;
 
@@ -130,44 +164,51 @@ const ListingsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchListingsData(1, searchTerm, selectedCategory);
-  }, [searchTerm, selectedCategory, fetchListingsData]);
+    fetchListingsData(1, searchTerm, locationTerm, selectedCategory);
+  }, [searchTerm, locationTerm, selectedCategory, fetchListingsData]);
 
+  // Update URL parameters when search state changes
   useEffect(() => {
     const params: Record<string, string> = {};
     if (searchTerm.trim()) params.q = searchTerm.trim();
+    if (locationTerm.trim()) params.location = locationTerm.trim();
     if (selectedCategory) params.categories = selectedCategory;
     if (searchParams.toString() !== new URLSearchParams(params).toString()) {
-        setSearchParams(params, { replace: true });
+      setSearchParams(params, { replace: true });
     }
-  }, [searchTerm, selectedCategory, setSearchParams, searchParams]);
+  }, [searchTerm, locationTerm, selectedCategory, setSearchParams, searchParams]);
 
   const uniqueCategories = useMemo(() => 
     Array.from(new Set(listings.map((listing: BaseListing) => listing.category)))
     .sort((a,b) => a.localeCompare(b)) 
   , [listings]);
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    fetchListingsData(1, searchTerm, locationTerm, selectedCategory);
+  };
+
   const handleCategorySelect = (category: ListingCategory | null) => {
     setSelectedCategory(category);
     setCurrentPage(1);
   };
 
-
-
   const clearAllFilters = () => {
     setSearchTerm('');
+    setLocationTerm('');
     setSelectedCategory(null);
     setCurrentPage(1);
   };
 
   const handleLoadMore = () => {
     if (!isLoadingMore && (currentPage * LISTINGS_PER_PAGE < totalListings)) {
-      fetchListingsData(currentPage + 1, searchTerm, selectedCategory);
+      fetchListingsData(currentPage + 1, searchTerm, locationTerm, selectedCategory);
     }
   };
 
   const handleTryAgain = () => {
-    fetchListingsData(1, searchTerm, selectedCategory);
+    fetchListingsData(1, searchTerm, locationTerm, selectedCategory);
   };
 
   const handleScrollFeatured = (direction: 'prev' | 'next') => {
@@ -175,50 +216,118 @@ const ListingsPage: React.FC = () => {
     if (element) {
       const scrollVal = direction === 'prev' ? -CAROUSEL_SCROLL_AMOUNT : CAROUSEL_SCROLL_AMOUNT;
       element.scrollBy({ left: scrollVal, behavior: 'smooth' });
-      // checkCarouselScrollability will be called by the scroll event listener
     }
   };
 
   return (
-    <div className="min-h-screen bg-neutral-100 flex flex-col font-sans">
-      {/* Header Section */}
-      <header className="relative text-white pt-8 pb-6 md:pt-12 md:pb-10 shadow-xl overflow-hidden">
-        {/* Background image with overlay */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-black opacity-70"></div>
-          <img 
-            src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1740&q=80" 
-            alt="City background" 
-            className="w-full h-full object-cover"
-          />
-        </div>
-        
-        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl text-yellow-400"
+    <div className="min-h-screen bg-neutral-50 flex flex-col font-sans">
+      {/* Enhanced Search and Filter Header */}
+      <section className="bg-white border-b border-neutral-200 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Search Form */}
+          <form onSubmit={handleSearch} className="mb-6">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1 relative">
+                <SearchIcon />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search for services, properties, stores..."
+                  className="w-full pl-12 pr-4 py-4 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-neutral-800 placeholder-neutral-500"
+                />
+              </div>
+              <div className="flex-1 relative">
+                <MapPinIcon />
+                <input
+                  type="text"
+                  value={locationTerm}
+                  onChange={(e) => setLocationTerm(e.target.value)}
+                  placeholder="Enter location..."
+                  className="w-full pl-12 pr-4 py-4 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-neutral-800 placeholder-neutral-500"
+                />
+              </div>
+              <Button
+                type="submit"
+                className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-4 px-8 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 lg:w-auto w-full"
+              >
+                <SearchIcon />
+                Search
+              </Button>
+            </div>
+          </form>
+
+          {/* Filter Toggle and Results Count */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Button
+                onClick={() => setShowFilters(!showFilters)}
+                variant="outline"
+                className="flex items-center gap-2 border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+              >
+                <FilterIcon />
+                Filters
+                {showFilters ? <ChevronUpIcon /> : <ChevronDownIcon />}
+              </Button>
+              <span className="text-neutral-600">
+                {loading ? 'Searching...' : `${totalListings} result${totalListings === 1 ? '' : 's'} found`}
+              </span>
+            </div>
+            
+            {(searchTerm.trim() || locationTerm.trim() || selectedCategory !== null) && (
+              <Button 
+                variant="outline" 
+                onClick={clearAllFilters} 
+                className="text-sm text-yellow-600 hover:text-yellow-700 font-medium border-yellow-500 hover:bg-yellow-50 focus:ring-yellow-400"
+              >
+                Clear All Filters
+              </Button>
+            )}
+          </div>
+
+          {/* Collapsible Categories Section */}
+          <motion.div
+            initial={false}
+            animate={{ height: showFilters ? 'auto' : 0, opacity: showFilters ? 1 : 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="overflow-hidden"
           >
-            Discover Local Offerings
-          </motion.h1>
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
-            className="mt-3 text-sm sm:text-base text-neutral-300 max-w-xl mx-auto"
-          >
-            Find the best local businesses and services in your area, curated for you.
-          </motion.p>
+            <div className="pt-6 border-t border-neutral-200 mt-6">
+              <h3 className="text-lg font-semibold text-neutral-800 mb-4">Browse by Category</h3>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={() => handleCategorySelect(null)}
+                  className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 ease-in-out shadow-sm hover:shadow-md transform hover:-translate-y-0.5 
+                              ${selectedCategory === null 
+                                  ? 'bg-yellow-400 text-black ring-2 ring-yellow-500' 
+                                  : 'bg-white text-neutral-700 hover:bg-neutral-50 ring-1 ring-neutral-300'}`}
+                >
+                  All Categories
+                </Button>
+                {Object.values(ListingCategory).map(categoryValue => (
+                  <Button
+                    key={categoryValue}
+                    onClick={() => handleCategorySelect(categoryValue)}
+                    className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 ease-in-out shadow-sm hover:shadow-md transform hover:-translate-y-0.5 capitalize 
+                                ${selectedCategory === categoryValue 
+                                    ? 'bg-yellow-400 text-black ring-2 ring-yellow-500' 
+                                    : 'bg-white text-neutral-700 hover:bg-neutral-50 ring-1 ring-neutral-300'}`}
+                  >
+                    {categoryValue.toLowerCase().replace('_', ' ')}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
         </div>
-      </header>
+      </section>
 
       <main className="flex-grow">
-        {/* Featured Service Providers Carousel */}
+        {/* Featured Listings Carousel */}
         {!loading && featuredListings.length > 0 && (
-          <section className="py-12 md:py-16 bg-neutral-50 border-b border-neutral-200">
+          <section className="py-12 md:py-16 bg-white border-b border-neutral-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <h2 className="text-3xl font-bold text-neutral-800 mb-10 text-center">Featured Service Providers</h2>
+              <h2 className="text-3xl font-bold text-neutral-800 mb-10 text-center">Featured Listings</h2>
               <div className="relative group">
                 {canScrollPrev && (
                   <button 
@@ -232,7 +341,7 @@ const ListingsPage: React.FC = () => {
                 )}
                 <div 
                   ref={carouselRef} 
-                  className="flex overflow-x-auto space-x-6 pb-6 scrollbar-hide" // scrollbar-hide to hide scrollbar if desired
+                  className="flex overflow-x-auto space-x-6 pb-6 scrollbar-hide"
                 >
                   {featuredListings.map(listing => (
                     <motion.div 
@@ -261,50 +370,8 @@ const ListingsPage: React.FC = () => {
           </section>
         )}
 
-        {/* Main Content Area: Filters and Listings */}
+        {/* Main Listings Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
-          {/* Pill-style Category Filters */}
-          <div className="mb-10">
-            <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
-                <h3 className="text-2xl font-semibold text-neutral-800">Browse Listings</h3>
-                { (searchTerm.trim() || selectedCategory !== null) && (
-                    <Button 
-                        variant="outline" 
-                        onClick={clearAllFilters} 
-                        className="text-sm text-yellow-600 hover:text-yellow-700 font-medium px-3 py-1.5 border-yellow-500 hover:bg-yellow-50 focus:ring-yellow-400"
-                    >
-                        Clear All Filters
-                    </Button>
-                )}
-            </div>
-            <div className="flex flex-wrap gap-3 items-center">
-              <Button
-                onClick={() => handleCategorySelect(null)}
-                className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 ease-in-out shadow-sm hover:shadow-md transform hover:-translate-y-0.5 
-                            ${selectedCategory === null 
-                                ? 'bg-yellow-400 text-black ring-2 ring-yellow-500' 
-                                : 'bg-white text-neutral-700 hover:bg-neutral-50 ring-1 ring-neutral-300'}`}
-              >
-                All
-              </Button>
-              {uniqueCategories.map(categoryValue => (
-                <Button
-                  key={categoryValue}
-                  onClick={() => handleCategorySelect(categoryValue as ListingCategory)}
-                  className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 ease-in-out shadow-sm hover:shadow-md transform hover:-translate-y-0.5 capitalize 
-                              ${selectedCategory === categoryValue 
-                                  ? 'bg-yellow-400 text-black ring-2 ring-yellow-500' 
-                                  : 'bg-white text-neutral-700 hover:bg-neutral-50 ring-1 ring-neutral-300'}`}
-                >
-                  {categoryValue.toLowerCase().replace('_', ' ')}
-                </Button>
-              ))}
-            </div>
-            <p className="mt-6 text-sm text-neutral-600">
-                {loading ? 'Searching...' : `${totalListings} result${totalListings === 1 ? '' : 's'} found.`}
-            </p>
-          </div>
-
           {/* Listings Display Area */}
           {loading ? (
             <div className="grid gap-x-6 gap-y-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -337,16 +404,16 @@ const ListingsPage: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              {searchTerm.trim() || selectedCategory ? <EmptyFilterIcon /> : <EmptyBoxIcon />}
+              {searchTerm.trim() || locationTerm.trim() || selectedCategory ? <EmptyFilterIcon /> : <EmptyBoxIcon />}
               <h2 className="text-2xl font-semibold text-neutral-700 mt-4">
-                {searchTerm.trim() || selectedCategory ? 'No Listings Match Your Criteria' : 'No Listings Available'}
+                {searchTerm.trim() || locationTerm.trim() || selectedCategory ? 'No Listings Match Your Criteria' : 'No Listings Available'}
               </h2>
               <p className="mt-2 text-md text-neutral-600">
-                {searchTerm.trim() || selectedCategory 
-                  ? 'Try adjusting your search term or selected category.' 
+                {searchTerm.trim() || locationTerm.trim() || selectedCategory 
+                  ? 'Try adjusting your search terms or selected category.' 
                   : 'There are currently no published listings. Please check back later.'}
               </p>
-              {(searchTerm.trim() || selectedCategory) && (
+              {(searchTerm.trim() || locationTerm.trim() || selectedCategory) && (
                 <Button 
                   onClick={clearAllFilters} 
                   variant="outline"
@@ -395,7 +462,6 @@ const ListingsPage: React.FC = () => {
           )}
         </div>
       </main>
-      {/* Optional: <SiteFooter /> */}
     </div>
   );
 };

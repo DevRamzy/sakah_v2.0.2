@@ -488,6 +488,7 @@ interface GetPublishedListingsParams {
   page?: number;
   limit?: number;
   searchTerm?: string;
+  location?: string;
   category?: ListingCategory;
 }
 
@@ -512,6 +513,12 @@ export const getPublishedListings = async (params?: GetPublishedListingsParams):
     if (params?.searchTerm) {
       const searchTerm = params.searchTerm.toLowerCase();
       query = query.or(`business_name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,location.ilike.%${searchTerm}%,subcategory.ilike.%${searchTerm}%`);
+    }
+    
+    // Apply location filter if provided
+    if (params?.location) {
+      const locationTerm = params.location.toLowerCase();
+      query = query.ilike('location', `%${locationTerm}%`);
     }
     
     // Apply category filter if provided
