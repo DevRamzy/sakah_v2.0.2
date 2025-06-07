@@ -30,6 +30,7 @@ const initialFormState: ListingFormState = {
   autoDealershipDetails: null,
   images: [],
   isPublished: false,
+  status: 'pending',
   currentStep: 0
 };
 
@@ -84,6 +85,8 @@ export const useListingForm = ({ existingListingId }: UseListingFormProps = {}) 
               : null,
             images: listing.images || [],
             isPublished: listing.isPublished,
+            status: listing.status || 'pending',
+            rejectionReason: listing.rejectionReason,
             currentStep: 0
           };
           
@@ -263,9 +266,8 @@ export const useListingForm = ({ existingListingId }: UseListingFormProps = {}) 
         website: formState.website || undefined,
         businessHours: formState.businessHours,
         services: formState.services,
-        // Always save as draft initially - admin approval required
-        isPublished: false,
-        status: 'pending',
+        isPublished: false, // Always save as not published initially
+        status: 'pending', // Always set status to pending for new or updated listings
         images: formState.images
       };
       
@@ -279,6 +281,11 @@ export const useListingForm = ({ existingListingId }: UseListingFormProps = {}) 
       let listingId: string | null;
       
       if (existingListingId) {
+        // If this is a rejected listing being resubmitted, update the status
+        if (formState.status === 'rejected') {
+          listingData.status = 'pending';
+        }
+        
         // Update existing listing
         const success = await updateListing(existingListingId, listingData);
         listingId = success ? existingListingId : null;

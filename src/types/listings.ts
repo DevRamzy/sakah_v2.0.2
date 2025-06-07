@@ -102,8 +102,11 @@ export interface BaseListing {
   createdAt?: Date;
   updatedAt?: Date;
   isPublished: boolean;
+  isFeatured?: boolean;
   status?: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
+  approvedAt?: Date;
+  approvedBy?: string;
   businessHours?: BusinessHours[];
   services?: Service[];
   images?: ListingImage[];
@@ -169,6 +172,8 @@ export interface ListingFormState {
   
   // Metadata
   isPublished: boolean;
+  status?: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
   currentStep: number;
 }
 

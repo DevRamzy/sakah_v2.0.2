@@ -3,20 +3,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import ListingsTab from '../features/listings/components/dashboard/ListingsTab';
-import { 
-  User, 
-  Mail, 
-  Calendar, 
-  LogOut, 
-  FileText, 
-  Clock, 
-  CheckCircle, 
-  AlertCircle, 
-  Plus, 
-  Settings, 
-  Home, 
-  X 
-} from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface Profile {
   id: string;
@@ -27,9 +14,10 @@ interface Profile {
 }
 
 interface DashboardStats {
-  total_listings: number;
-  published_listings: number;
-  draft_listings: number;
+  totalListings: number;
+  pendingListings: number;
+  approvedListings: number;
+  rejectedListings: number;
 }
 
 const Dashboard: React.FC = () => {
@@ -37,13 +25,9 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [stats, setStats] = useState<DashboardStats>({
-    total_listings: 0,
-    published_listings: 0,
-    draft_listings: 0
-  });
-  const [pendingListings, setPendingListings] = useState<any[]>([]);
-  const [rejectedListings, setRejectedListings] = useState<any[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -94,66 +78,6 @@ const Dashboard: React.FC = () => {
           } else {
             setProfile(data);
           }
-          
-          // Fetch dashboard stats
-          try {
-            const { data: statsData, error: statsError } = await supabase.rpc('get_user_dashboard_stats', {
-              user_id: user.id
-            });
-            
-            if (statsError) {
-              console.error('Error fetching stats:', statsError);
-              
-              // Fallback to direct queries if RPC fails
-              const [totalRes, publishedRes] = await Promise.all([
-                supabase.from('listings').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-                supabase.from('listings').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_published', true)
-              ]);
-              
-              const total = totalRes.count || 0;
-              const published = publishedRes.count || 0;
-              
-              setStats({
-                total_listings: total,
-                published_listings: published,
-                draft_listings: total - published
-              });
-            } else {
-              setStats({
-                total_listings: statsData.total_listings || 0,
-                published_listings: statsData.published_listings || 0,
-                draft_listings: statsData.draft_listings || 0
-              });
-            }
-          } catch (statsError) {
-            console.error('Error in stats flow:', statsError);
-          }
-          
-          // Fetch pending listings
-          const { data: pendingData } = await supabase
-            .from('listings')
-            .select('id, business_name, category, created_at, status')
-            .eq('user_id', user.id)
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false })
-            .limit(5);
-            
-          if (pendingData) {
-            setPendingListings(pendingData);
-          }
-          
-          // Fetch rejected listings
-          const { data: rejectedData } = await supabase
-            .from('listings')
-            .select('id, business_name, category, created_at, status, rejection_reason')
-            .eq('user_id', user.id)
-            .eq('status', 'rejected')
-            .order('created_at', { ascending: false })
-            .limit(5);
-            
-          if (rejectedData) {
-            setRejectedListings(rejectedData);
-          }
         } catch (error) {
           console.error('Error in profile flow:', error);
         } finally {
@@ -167,9 +91,40 @@ const Dashboard: React.FC = () => {
     fetchProfile();
   }, [user]);
 
+  // Fetch dashboard stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user) return;
+      
+      setStatsLoading(true);
+      setStatsError(null);
+      
+      try {
+        const { data, error } = await supabase.rpc('get_user_dashboard_stats');
+        
+        if (error) {
+          console.error('Error fetching stats:', error);
+          setStatsError(error.message);
+          return;
+        }
+        
+        setStats(data);
+      } catch (err) {
+        console.error('Exception fetching stats:', err);
+        setStatsError('Failed to load dashboard statistics');
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    
+    if (activeTab === 'overview') {
+      fetchStats();
+    }
+  }, [user, activeTab]);
+
   // Redirect to login if not authenticated
   if (!user && !loading) {
-    return <Navigate to="/auth\" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   const handleSignOut = async () => {
@@ -180,14 +135,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
   const renderTabContent = () => {
     switch (activeTab) {
       case 'listings':
@@ -195,205 +142,111 @@ const Dashboard: React.FC = () => {
       case 'overview':
         return (
           <div className="animate-fadeIn">
-            <h2 className="text-xl font-semibold mb-4">Dashboard Overview</h2>
-            
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <FileText className="h-6 w-6 text-blue-600" />
+            <h2 className="text-xl font-semibold mb-4">Account Overview</h2>
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                <div className="bg-primary-light rounded-full p-4">
+                  <svg className="h-12 w-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium">{profile?.full_name || 'User'}</h3>
+                  <p className="text-gray-500">{user?.email}</p>
+                  <div className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-light text-primary-dark">
+                    {profile?.role || 'user'}
                   </div>
                 </div>
-                <h3 className="text-3xl font-bold text-neutral-800">{stats.total_listings}</h3>
-                <p className="text-neutral-500 text-sm">Total Listings</p>
-              </div>
-              
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                  </div>
-                </div>
-                <h3 className="text-3xl font-bold text-neutral-800">{stats.published_listings}</h3>
-                <p className="text-neutral-500 text-sm">Approved Listings</p>
-              </div>
-              
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-yellow-100 rounded-lg">
-                    <Clock className="h-6 w-6 text-yellow-600" />
-                  </div>
-                </div>
-                <h3 className="text-3xl font-bold text-neutral-800">{pendingListings.length}</h3>
-                <p className="text-neutral-500 text-sm">Pending Approval</p>
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Account Details */}
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
-                <h3 className="text-lg font-medium mb-4 flex items-center">
-                  <User className="w-5 h-5 mr-2 text-neutral-500" />
-                  Account Details
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-neutral-200 flex items-center justify-center mr-3">
-                      {profile?.avatar_url ? (
-                        <img src={profile.avatar_url} alt="" className="w-10 h-10 rounded-full" />
-                      ) : (
-                        <User className="w-5 h-5 text-neutral-500" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium text-neutral-800">{profile?.full_name || 'User'}</p>
-                      <p className="text-sm text-neutral-500">{user?.email}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start">
-                    <Mail className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
-                    <div>
-                      <p className="text-sm text-neutral-500">Email</p>
-                      <p className="text-neutral-800">{user?.email}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start">
-                    <Calendar className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
-                    <div>
-                      <p className="text-sm text-neutral-500">Member since</p>
-                      <p className="text-neutral-800">{user?.created_at ? formatDate(user.created_at) : 'Unknown'}</p>
-                    </div>
+            {/* Listings Stats */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-4">Your Listings</h3>
+              
+              {statsLoading ? (
+                <div className="bg-white rounded-lg shadow p-6 flex justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                </div>
+              ) : statsError ? (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="text-red-500 text-center">
+                    <p>{statsError}</p>
+                    <button 
+                      onClick={() => setStatsError(null)}
+                      className="mt-2 text-primary hover:underline"
+                    >
+                      Dismiss
+                    </button>
                   </div>
                 </div>
-                
-                <div className="mt-6 pt-6 border-t border-neutral-100">
-                  <Link 
-                    to="/dashboard/profile" 
-                    className="text-sm text-yellow-600 hover:text-yellow-700 font-medium"
-                  >
-                    Edit Profile
-                  </Link>
-                </div>
-              </div>
-              
-              {/* Pending Approvals */}
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
-                <h3 className="text-lg font-medium mb-4 flex items-center">
-                  <Clock className="w-5 h-5 mr-2 text-neutral-500" />
-                  Pending Approvals
-                </h3>
-                
-                {pendingListings.length === 0 ? (
-                  <div className="text-center py-8">
-                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                    <p className="text-neutral-600">No pending approvals</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-lg shadow p-6 text-center">
+                    <p className="text-gray-500 text-sm">Total Listings</p>
+                    <p className="text-3xl font-bold text-gray-800">{stats?.totalListings || 0}</p>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {pendingListings.map(listing => (
-                      <div key={listing.id} className="p-3 bg-yellow-50 rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium text-neutral-800">{listing.business_name}</p>
-                            <p className="text-sm text-neutral-500">
-                              {listing.category.replace('_', ' ')} • Submitted on {formatDate(listing.created_at)}
-                            </p>
-                          </div>
-                          <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                            Pending
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                    
-                    {pendingListings.length > 0 && (
-                      <div className="mt-4 text-center">
-                        <Link 
-                          to="/dashboard/listings?status=pending" 
-                          className="text-sm text-yellow-600 hover:text-yellow-700 font-medium"
-                        >
-                          View All Pending
-                        </Link>
-                      </div>
-                    )}
+                  <div className="bg-white rounded-lg shadow p-6 text-center">
+                    <p className="text-gray-500 text-sm">Pending Review</p>
+                    <p className="text-3xl font-bold text-yellow-500">{stats?.pendingListings || 0}</p>
                   </div>
-                )}
-              </div>
-              
-              {/* Rejected Listings */}
-              {rejectedListings.length > 0 && (
-                <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200 md:col-span-2">
-                  <h3 className="text-lg font-medium mb-4 flex items-center">
-                    <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
-                    Rejected Listings
-                  </h3>
-                  
-                  <div className="space-y-3">
-                    {rejectedListings.map(listing => (
-                      <div key={listing.id} className="p-4 bg-red-50 rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium text-neutral-800">{listing.business_name}</p>
-                            <p className="text-sm text-neutral-500">
-                              {listing.category.replace('_', ' ')} • Rejected on {formatDate(listing.created_at)}
-                            </p>
-                            {listing.rejection_reason && (
-                              <p className="mt-2 text-sm text-red-600">
-                                <strong>Reason:</strong> {listing.rejection_reason}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex space-x-2">
-                            <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
-                              Rejected
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex justify-end">
-                          <Link 
-                            to={`/edit-listing/${listing.id}`}
-                            className="text-sm text-yellow-600 hover:text-yellow-700 font-medium"
-                          >
-                            Edit & Resubmit
-                          </Link>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="bg-white rounded-lg shadow p-6 text-center">
+                    <p className="text-gray-500 text-sm">Approved</p>
+                    <p className="text-3xl font-bold text-green-500">{stats?.approvedListings || 0}</p>
+                  </div>
+                  <div className="bg-white rounded-lg shadow p-6 text-center">
+                    <p className="text-gray-500 text-sm">Rejected</p>
+                    <p className="text-3xl font-bold text-red-500">{stats?.rejectedListings || 0}</p>
                   </div>
                 </div>
               )}
             </div>
             
-            {/* Quick Actions */}
-            <div className="mt-8 bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
-              <h3 className="text-lg font-medium mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Link 
-                  to="/create-listing" 
-                  className="flex items-center p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
-                >
-                  <Plus className="w-5 h-5 text-yellow-600 mr-3" />
-                  <span className="font-medium text-neutral-800">Create New Listing</span>
-                </Link>
-                
-                <Link 
-                  to="/dashboard/listings" 
-                  className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                >
-                  <FileText className="w-5 h-5 text-blue-600 mr-3" />
-                  <span className="font-medium text-neutral-800">Manage Listings</span>
-                </Link>
-                
-                <Link 
-                  to="/dashboard/settings" 
-                  className="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-                >
-                  <Settings className="w-5 h-5 text-green-600 mr-3" />
-                  <span className="font-medium text-neutral-800">Account Settings</span>
-                </Link>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-medium mb-4">Account Details</h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-500">Username</p>
+                    <p>{profile?.username || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Email</p>
+                    <p>{user?.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Member since</p>
+                    <p>{user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-medium mb-4">Activity</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 h-8 w-8 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                      <svg className="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Account created</p>
+                      <p className="text-xs text-gray-500">{user?.created_at ? new Date(user.created_at).toLocaleString() : 'Unknown'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                      <svg className="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Last sign in</p>
+                      <p className="text-xs text-gray-500">{user?.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'Unknown'}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -484,7 +337,7 @@ const Dashboard: React.FC = () => {
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'settings' ? 'bg-primary text-jet-black' : 'text-white hover:bg-charcoal hover:bg-opacity-80'}`}
                   >
                     <svg className={`mr-3 h-5 w-5 ${activeTab === 'settings' ? 'text-jet-black' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                     Settings
