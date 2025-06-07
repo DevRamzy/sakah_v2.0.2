@@ -20,7 +20,8 @@ import {
   ShieldCheck,
   Eye,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  X
 } from 'lucide-react';
 
 interface Profile {
@@ -209,7 +210,9 @@ const Dashboard: React.FC = () => {
         });
       } else {
         setStats({
-          ...statsResponse.data,
+          totalListings: statsResponse.data.total_listings || 0,
+          publishedListings: statsResponse.data.published_listings || 0,
+          draftListings: statsResponse.data.draft_listings || 0,
           savedListings: 3, // Placeholder
           totalViews: 120, // Placeholder
           totalInquiries: 8 // Placeholder
@@ -236,7 +239,7 @@ const Dashboard: React.FC = () => {
 
   // Redirect to login if not authenticated
   if (!user && !loading) {
-    return <Navigate to="/auth\" replace />;
+    return <Navigate to="/auth" replace />;
   }
 
   const handleSignOut = async () => {
@@ -537,16 +540,16 @@ const Dashboard: React.FC = () => {
                           <div className="flex-1">
                             <div className="flex items-start">
                               {notification.type === 'success' && (
-                                <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
+                                <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" aria-hidden="true" />
                               )}
                               {notification.type === 'warning' && (
-                                <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
+                                <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5" aria-hidden="true" />
                               )}
                               {notification.type === 'error' && (
-                                <AlertTriangle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
+                                <AlertTriangle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" aria-hidden="true" />
                               )}
                               {notification.type === 'info' && (
-                                <Bell className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
+                                <Bell className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5" aria-hidden="true" />
                               )}
                               <p className={`text-sm ${!notification.read ? 'font-medium text-neutral-800' : 'text-neutral-600'}`}>
                                 {notification.message}
@@ -960,7 +963,7 @@ const Dashboard: React.FC = () => {
                   <div className="flex-1 divide-y divide-neutral-200 overflow-y-auto">
                     {notifications.length === 0 ? (
                       <div className="text-center py-12">
-                        <Bell className="h-12 w-12 text-neutral-300 mx-auto mb-3\" aria-hidden="true" />
+                        <Bell className="h-12 w-12 text-neutral-300 mx-auto mb-3" aria-hidden="true" />
                         <p className="text-neutral-500">No notifications</p>
                       </div>
                     ) : (
@@ -973,16 +976,16 @@ const Dashboard: React.FC = () => {
                             <div className="flex-1">
                               <div className="flex items-start">
                                 {notification.type === 'success' && (
-                                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
+                                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" aria-hidden="true" />
                                 )}
                                 {notification.type === 'warning' && (
-                                  <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
+                                  <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5" aria-hidden="true" />
                                 )}
                                 {notification.type === 'error' && (
-                                  <AlertTriangle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
+                                  <AlertTriangle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" aria-hidden="true" />
                                 )}
                                 {notification.type === 'info' && (
-                                  <Bell className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
+                                  <Bell className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5" aria-hidden="true" />
                                 )}
                                 <p className={`text-sm ${!notification.read ? 'font-medium text-neutral-800' : 'text-neutral-600'}`}>
                                   {notification.message}
