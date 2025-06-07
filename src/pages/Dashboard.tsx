@@ -169,7 +169,7 @@ const Dashboard: React.FC = () => {
 
   // Redirect to login if not authenticated
   if (!user && !loading) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/auth\" replace />;
   }
 
   const handleSignOut = async () => {
