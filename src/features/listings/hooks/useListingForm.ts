@@ -263,7 +263,9 @@ export const useListingForm = ({ existingListingId }: UseListingFormProps = {}) 
         website: formState.website || undefined,
         businessHours: formState.businessHours,
         services: formState.services,
-        isPublished: publish,
+        // Always save as draft initially - admin approval required
+        isPublished: false,
+        status: 'pending',
         images: formState.images
       };
       

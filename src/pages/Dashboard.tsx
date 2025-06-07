@@ -1,27 +1,21 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Navigate, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import ListingsTab from '../features/listings/components/dashboard/ListingsTab';
 import { 
-  Home, 
-  ListChecks, 
-  Settings, 
-  PlusCircle, 
-  LogOut, 
   User, 
-  Bell, 
-  Heart, 
+  Mail, 
+  Calendar, 
+  LogOut, 
+  FileText, 
   Clock, 
-  ChevronRight,
-  BarChart2,
-  MessageSquare,
-  ShieldCheck,
-  Eye,
-  AlertTriangle,
-  CheckCircle,
-  X
+  CheckCircle, 
+  AlertCircle, 
+  Plus, 
+  Settings, 
+  Home, 
+  X 
 } from 'lucide-react';
 
 interface Profile {
@@ -33,238 +27,165 @@ interface Profile {
 }
 
 interface DashboardStats {
-  totalListings: number;
-  publishedListings: number;
-  draftListings: number;
-  savedListings: number;
-  totalViews: number;
-  totalInquiries: number;
-}
-
-interface Notification {
-  id: number;
-  message: string;
-  time: string;
-  read: boolean;
-  type?: 'info' | 'success' | 'warning' | 'error';
-  link?: string;
-}
-
-interface Activity {
-  id: number;
-  type: string;
-  title: string;
-  description: string;
-  time: string;
-  icon: React.ElementType;
-  iconBg: string;
-  iconColor: string;
+  total_listings: number;
+  published_listings: number;
+  draft_listings: number;
 }
 
 const Dashboard: React.FC = () => {
-  const { user, signOut, isAdmin, profile: authProfile } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
+  const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState<DashboardStats>({
-    totalListings: 0,
-    publishedListings: 0,
-    draftListings: 0,
-    savedListings: 0,
-    totalViews: 0,
-    totalInquiries: 0
+    total_listings: 0,
+    published_listings: 0,
+    draft_listings: 0
   });
-  const [notifications, setNotifications] = useState<Notification[]>([
-    { id: 1, message: 'Your listing "Downtown Apartment" has 5 new views', time: '2 hours ago', read: false, type: 'info', link: '/listings/1' },
-    { id: 2, message: 'New message from a potential customer', time: '1 day ago', read: true, type: 'success', link: '/messages/1' },
-    { id: 3, message: 'Your account has been successfully verified', time: '3 days ago', read: true, type: 'success' }
-  ]);
-  const [activities, setActivities] = useState<Activity[]>([
-    { 
-      id: 1, 
-      type: 'profile', 
-      title: 'Profile Updated', 
-      description: 'You updated your profile information',
-      time: '2 days ago',
-      icon: User,
-      iconBg: 'bg-blue-100',
-      iconColor: 'text-blue-600'
-    },
-    { 
-      id: 2, 
-      type: 'listing', 
-      title: 'Listing Published', 
-      description: 'Your listing "Downtown Apartment" was published',
-      time: '3 days ago',
-      icon: ListChecks,
-      iconBg: 'bg-green-100',
-      iconColor: 'text-green-600'
-    },
-    { 
-      id: 3, 
-      type: 'message', 
-      title: 'New Message', 
-      description: 'You received a new message about your listing',
-      time: '5 days ago',
-      icon: MessageSquare,
-      iconBg: 'bg-yellow-100',
-      iconColor: 'text-yellow-600'
-    }
-  ]);
-  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
-  const navigate = useNavigate();
+  const [pendingListings, setPendingListings] = useState<any[]>([]);
+  const [rejectedListings, setRejectedListings] = useState<any[]>([]);
 
-  // Update URL when tab changes
   useEffect(() => {
-    setSearchParams({ tab: activeTab }, { replace: true });
-  }, [activeTab, setSearchParams]);
-
-  // Initialize tab from URL params
-  useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam && ['overview', 'listings', 'settings'].includes(tabParam)) {
-      setActiveTab(tabParam);
-    }
-  }, [searchParams]);
-
-  const fetchDashboardData = useCallback(async () => {
-    if (!user?.id) return;
-    
-    setLoading(true);
-    
-    try {
-      // Fetch all data in a single query where possible to improve performance
-      const [profileResponse, statsResponse] = await Promise.all([
-        // Profile data
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single(),
-          
-        // Stats data - using RPC for better performance
-        supabase.rpc('get_user_dashboard_stats', { user_id: user.id })
-      ]);
-      
-      // Handle profile data
-      if (profileResponse.error) {
-        // If profile doesn't exist, create it
-        if (profileResponse.error.code === 'PGRST116') {
-          const { error: insertError } = await supabase
+    const fetchProfile = async () => {
+      if (user?.id) {
+        try {
+          // First check if the profile exists
+          const { count, error: countError } = await supabase
             .from('profiles')
-            .insert([{ 
-              id: user.id,
-              username: user.email?.split('@')[0] || 'user',
-              full_name: '',
-              avatar_url: '',
-              role: 'user'
-            }]);
+            .select('*', { count: 'exact', head: true })
+            .eq('id', user.id);
 
-          if (insertError) {
-            console.error('Error creating profile:', insertError);
-          } else {
-            // Fetch the newly created profile
-            const { data: newProfile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', user.id)
-              .single();
-              
-            setProfile(newProfile);
+          if (countError) {
+            console.error('Error checking profile existence:', countError);
+            setLoading(false);
+            return;
           }
-        } else {
-          console.error('Error fetching profile:', profileResponse.error);
+
+          // If profile doesn't exist, create it
+          if (count === 0) {
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert([
+                { 
+                  id: user.id,
+                  username: user.email?.split('@')[0] || 'user',
+                  full_name: '',
+                  avatar_url: '',
+                  role: 'user'
+                }
+              ]);
+
+            if (insertError) {
+              console.error('Error creating profile:', insertError);
+              setLoading(false);
+              return;
+            }
+          }
+
+          // Now fetch the profile
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+          if (error) {
+            console.error('Error fetching profile:', error);
+          } else {
+            setProfile(data);
+          }
+          
+          // Fetch dashboard stats
+          try {
+            const { data: statsData, error: statsError } = await supabase.rpc('get_user_dashboard_stats', {
+              user_id: user.id
+            });
+            
+            if (statsError) {
+              console.error('Error fetching stats:', statsError);
+              
+              // Fallback to direct queries if RPC fails
+              const [totalRes, publishedRes] = await Promise.all([
+                supabase.from('listings').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+                supabase.from('listings').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_published', true)
+              ]);
+              
+              const total = totalRes.count || 0;
+              const published = publishedRes.count || 0;
+              
+              setStats({
+                total_listings: total,
+                published_listings: published,
+                draft_listings: total - published
+              });
+            } else {
+              setStats({
+                total_listings: statsData.total_listings || 0,
+                published_listings: statsData.published_listings || 0,
+                draft_listings: statsData.draft_listings || 0
+              });
+            }
+          } catch (statsError) {
+            console.error('Error in stats flow:', statsError);
+          }
+          
+          // Fetch pending listings
+          const { data: pendingData } = await supabase
+            .from('listings')
+            .select('id, business_name, category, created_at, status')
+            .eq('user_id', user.id)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+          if (pendingData) {
+            setPendingListings(pendingData);
+          }
+          
+          // Fetch rejected listings
+          const { data: rejectedData } = await supabase
+            .from('listings')
+            .select('id, business_name, category, created_at, status, rejection_reason')
+            .eq('user_id', user.id)
+            .eq('status', 'rejected')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+          if (rejectedData) {
+            setRejectedListings(rejectedData);
+          }
+        } catch (error) {
+          console.error('Error in profile flow:', error);
+        } finally {
+          setLoading(false);
         }
       } else {
-        setProfile(profileResponse.data);
+        setLoading(false);
       }
-      
-      // Handle stats data
-      if (statsResponse.error) {
-        console.error('Error fetching stats:', statsResponse.error);
-        
-        // Fallback to separate queries if RPC fails
-        const [totalCount, publishedCount] = await Promise.all([
-          supabase
-            .from('listings')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id),
-            
-          supabase
-            .from('listings')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-            .eq('is_published', true)
-        ]);
-        
-        const draftCount = (totalCount.count || 0) - (publishedCount.count || 0);
-        
-        setStats({
-          totalListings: totalCount.count || 0,
-          publishedListings: publishedCount.count || 0,
-          draftListings: draftCount,
-          savedListings: 3, // Placeholder
-          totalViews: 120, // Placeholder
-          totalInquiries: 8 // Placeholder
-        });
-      } else {
-        setStats({
-          totalListings: statsResponse.data.total_listings || 0,
-          publishedListings: statsResponse.data.published_listings || 0,
-          draftListings: statsResponse.data.draft_listings || 0,
-          savedListings: 3, // Placeholder
-          totalViews: 120, // Placeholder
-          totalInquiries: 8 // Placeholder
-        });
-      }
-      
-      // Fetch notifications and activities in a real implementation
-      // For now, we'll use the mock data
-      
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+    };
 
-  useEffect(() => {
-    if (user) {
-      fetchDashboardData();
-    } else {
-      setLoading(false);
-    }
-  }, [user, fetchDashboardData]);
+    fetchProfile();
+  }, [user]);
 
   // Redirect to login if not authenticated
   if (!user && !loading) {
-    return <Navigate to="/auth\" replace />;
+    return <Navigate to="/auth" replace />;
   }
 
   const handleSignOut = async () => {
     try {
       await signOut();
-      navigate('/');
     } catch (error) {
       console.error('Error signing out:', error);
     }
   };
 
-  const handleMarkAllNotificationsAsRead = () => {
-    setNotifications(prev => prev.map(notification => ({ ...notification, read: true })));
-  };
-
-  const handleMarkNotificationAsRead = (id: number) => {
-    setNotifications(prev => 
-      prev.map(notification => 
-        notification.id === id ? { ...notification, read: true } : notification
-      )
-    );
-  };
-
-  const handleDeleteNotification = (id: number) => {
-    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
   const renderTabContent = () => {
@@ -273,570 +194,234 @@ const Dashboard: React.FC = () => {
         return user ? <ListingsTab userId={user.id} /> : null;
       case 'overview':
         return (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="space-y-8"
-          >
-            {/* Welcome Section */}
-            <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl p-6 shadow-md">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-black mb-2">
-                    Welcome back, {profile?.full_name || profile?.username || 'User'}!
-                  </h2>
-                  <p className="text-black/80 max-w-xl">
-                    Manage your listings, track performance, and grow your presence on Sakah.
-                  </p>
+          <div className="animate-fadeIn">
+            <h2 className="text-xl font-semibold mb-4">Dashboard Overview</h2>
+            
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 rounded-lg">
+                    <FileText className="h-6 w-6 text-blue-600" />
+                  </div>
                 </div>
-                <div className="mt-4 md:mt-0">
+                <h3 className="text-3xl font-bold text-neutral-800">{stats.total_listings}</h3>
+                <p className="text-neutral-500 text-sm">Total Listings</p>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+                <h3 className="text-3xl font-bold text-neutral-800">{stats.published_listings}</h3>
+                <p className="text-neutral-500 text-sm">Approved Listings</p>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-yellow-100 rounded-lg">
+                    <Clock className="h-6 w-6 text-yellow-600" />
+                  </div>
+                </div>
+                <h3 className="text-3xl font-bold text-neutral-800">{pendingListings.length}</h3>
+                <p className="text-neutral-500 text-sm">Pending Approval</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Account Details */}
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
+                <h3 className="text-lg font-medium mb-4 flex items-center">
+                  <User className="w-5 h-5 mr-2 text-neutral-500" />
+                  Account Details
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 rounded-full bg-neutral-200 flex items-center justify-center mr-3">
+                      {profile?.avatar_url ? (
+                        <img src={profile.avatar_url} alt="" className="w-10 h-10 rounded-full" />
+                      ) : (
+                        <User className="w-5 h-5 text-neutral-500" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-neutral-800">{profile?.full_name || 'User'}</p>
+                      <p className="text-sm text-neutral-500">{user?.email}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start">
+                    <Mail className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
+                    <div>
+                      <p className="text-sm text-neutral-500">Email</p>
+                      <p className="text-neutral-800">{user?.email}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start">
+                    <Calendar className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
+                    <div>
+                      <p className="text-sm text-neutral-500">Member since</p>
+                      <p className="text-neutral-800">{user?.created_at ? formatDate(user.created_at) : 'Unknown'}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-6 pt-6 border-t border-neutral-100">
                   <Link 
-                    to="/create-listing" 
-                    className="inline-flex items-center px-4 py-2 bg-black text-yellow-400 rounded-lg font-medium hover:bg-neutral-800 transition-colors"
-                    aria-label="Create a new listing"
+                    to="/dashboard/profile" 
+                    className="text-sm text-yellow-600 hover:text-yellow-700 font-medium"
                   >
-                    <PlusCircle className="w-5 h-5 mr-2" />
-                    Create New Listing
+                    Edit Profile
                   </Link>
                 </div>
               </div>
-            </div>
-            
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <motion.div 
-                className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow"
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <ListChecks className="w-6 h-6 text-blue-600" aria-hidden="true" />
-                  </div>
-                  <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                    All
-                  </span>
-                </div>
-                <h3 className="text-2xl font-bold text-neutral-800">{stats.totalListings}</h3>
-                <p className="text-neutral-500 text-sm">Total Listings</p>
-                <Link 
-                  to="/dashboard?tab=listings" 
-                  className="mt-4 text-sm text-blue-600 flex items-center hover:underline"
-                  aria-label="View all listings"
-                >
-                  View all <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
-                </Link>
-              </motion.div>
               
-              <motion.div 
-                className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow"
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <BarChart2 className="w-6 h-6 text-green-600" aria-hidden="true" />
-                  </div>
-                  <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                    Active
-                  </span>
-                </div>
-                <h3 className="text-2xl font-bold text-neutral-800">{stats.publishedListings}</h3>
-                <p className="text-neutral-500 text-sm">Published Listings</p>
-                <Link 
-                  to="/dashboard?tab=listings&filter=published" 
-                  className="mt-4 text-sm text-green-600 flex items-center hover:underline"
-                  aria-label="View published listings"
-                >
-                  View published <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
-                </Link>
-              </motion.div>
-              
-              <motion.div 
-                className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow"
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-yellow-100 rounded-lg">
-                    <Clock className="w-6 h-6 text-yellow-600" aria-hidden="true" />
-                  </div>
-                  <span className="text-sm font-medium text-yellow-600 bg-yellow-50 px-2 py-1 rounded-full">
-                    Pending
-                  </span>
-                </div>
-                <h3 className="text-2xl font-bold text-neutral-800">{stats.draftListings}</h3>
-                <p className="text-neutral-500 text-sm">Draft Listings</p>
-                <Link 
-                  to="/dashboard?tab=listings&filter=draft" 
-                  className="mt-4 text-sm text-yellow-600 flex items-center hover:underline"
-                  aria-label="View draft listings"
-                >
-                  View drafts <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
-                </Link>
-              </motion.div>
-              
-              <motion.div 
-                className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow"
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-red-100 rounded-lg">
-                    <Heart className="w-6 h-6 text-red-600" aria-hidden="true" />
-                  </div>
-                  <span className="text-sm font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">
-                    Saved
-                  </span>
-                </div>
-                <h3 className="text-2xl font-bold text-neutral-800">{stats.savedListings}</h3>
-                <p className="text-neutral-500 text-sm">Saved Listings</p>
-                <Link 
-                  to="/dashboard?tab=saved" 
-                  className="mt-4 text-sm text-red-600 flex items-center hover:underline"
-                  aria-label="View saved listings"
-                >
-                  View saved <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
-                </Link>
-              </motion.div>
-            </div>
-            
-            {/* Performance Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <motion.div 
-                className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow"
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
-                <h3 className="text-lg font-semibold text-neutral-800 mb-4 flex items-center">
-                  <Eye className="w-5 h-5 mr-2 text-blue-600" aria-hidden="true" />
-                  Listing Views
+              {/* Pending Approvals */}
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
+                <h3 className="text-lg font-medium mb-4 flex items-center">
+                  <Clock className="w-5 h-5 mr-2 text-neutral-500" />
+                  Pending Approvals
                 </h3>
-                <div className="flex items-end justify-between mb-6">
-                  <div>
-                    <p className="text-3xl font-bold text-neutral-800">{stats.totalViews}</p>
-                    <p className="text-sm text-neutral-500">Total views this month</p>
+                
+                {pendingListings.length === 0 ? (
+                  <div className="text-center py-8">
+                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                    <p className="text-neutral-600">No pending approvals</p>
                   </div>
-                  <div className="text-sm text-green-600 flex items-center">
-                    <span className="font-medium">+12%</span>
-                    <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
-                  </div>
-                </div>
-                <div className="h-24 w-full bg-neutral-50 rounded-lg flex items-end p-2">
-                  {/* Placeholder for chart - would be replaced with actual chart component */}
-                  {Array.from({ length: 14 }).map((_, i) => (
-                    <div 
-                      key={i} 
-                      className="w-full bg-blue-500 rounded-t-sm mx-0.5" 
-                      style={{ 
-                        height: `${Math.max(15, Math.floor(Math.random() * 100))}%`,
-                        opacity: i === 13 ? 1 : 0.7 - (13 - i) * 0.05
-                      }}
-                      aria-hidden="true"
-                    ></div>
-                  ))}
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow"
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
-                <h3 className="text-lg font-semibold text-neutral-800 mb-4 flex items-center">
-                  <MessageSquare className="w-5 h-5 mr-2 text-green-600" aria-hidden="true" />
-                  Inquiries
-                </h3>
-                <div className="flex items-end justify-between mb-6">
-                  <div>
-                    <p className="text-3xl font-bold text-neutral-800">{stats.totalInquiries}</p>
-                    <p className="text-sm text-neutral-500">Total inquiries this month</p>
-                  </div>
-                  <div className="text-sm text-green-600 flex items-center">
-                    <span className="font-medium">+5%</span>
-                    <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
-                  </div>
-                </div>
-                <div className="h-24 w-full bg-neutral-50 rounded-lg flex items-end p-2">
-                  {/* Placeholder for chart - would be replaced with actual chart component */}
-                  {Array.from({ length: 14 }).map((_, i) => (
-                    <div 
-                      key={i} 
-                      className="w-full bg-green-500 rounded-t-sm mx-0.5" 
-                      style={{ 
-                        height: `${Math.max(10, Math.floor(Math.random() * 80))}%`,
-                        opacity: i === 13 ? 1 : 0.7 - (13 - i) * 0.05
-                      }}
-                      aria-hidden="true"
-                    ></div>
-                  ))}
-                </div>
-              </motion.div>
-            </div>
-            
-            {/* Recent Activity & Notifications */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-neutral-200 flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-neutral-800">Recent Activity</h3>
-                    <Link to="/dashboard/activity" className="text-sm text-yellow-600 hover:text-yellow-700">
-                      View all
-                    </Link>
-                  </div>
-                  <div className="p-6">
-                    <div className="space-y-6">
-                      {activities.map(activity => (
-                        <div key={activity.id} className="flex items-start">
-                          <div className={`flex-shrink-0 h-10 w-10 rounded-full ${activity.iconBg} flex items-center justify-center`}>
-                            <activity.icon className={`h-5 w-5 ${activity.iconColor}`} aria-hidden="true" />
+                ) : (
+                  <div className="space-y-3">
+                    {pendingListings.map(listing => (
+                      <div key={listing.id} className="p-3 bg-yellow-50 rounded-lg">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-neutral-800">{listing.business_name}</p>
+                            <p className="text-sm text-neutral-500">
+                              {listing.category.replace('_', ' ')} • Submitted on {formatDate(listing.created_at)}
+                            </p>
                           </div>
-                          <div className="ml-4">
-                            <p className="text-sm font-medium text-neutral-800">{activity.title}</p>
-                            <p className="text-sm text-neutral-500">{activity.description}</p>
-                            <p className="text-xs text-neutral-400 mt-1">{activity.time}</p>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {activities.length === 0 && (
-                        <div className="text-center py-8">
-                          <Clock className="h-12 w-12 text-neutral-300 mx-auto mb-3" aria-hidden="true" />
-                          <p className="text-neutral-500">No recent activity</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="lg:col-span-1">
-                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-neutral-200 flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-neutral-800">Notifications</h3>
-                    <div className="flex items-center">
-                      <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full mr-2">
-                        {notifications.filter(n => !n.read).length}
-                      </span>
-                      {notifications.length > 0 && (
-                        <button 
-                          onClick={handleMarkAllNotificationsAsRead}
-                          className="text-xs text-neutral-600 hover:text-neutral-800"
-                          aria-label="Mark all as read"
-                        >
-                          Mark all read
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="divide-y divide-neutral-200 max-h-[400px] overflow-y-auto">
-                    {notifications.map(notification => (
-                      <div 
-                        key={notification.id} 
-                        className={`p-4 hover:bg-neutral-50 transition-colors ${!notification.read ? 'bg-yellow-50' : ''}`}
-                      >
-                        <div className="flex justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-start">
-                              {notification.type === 'success' && (
-                                <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
-                              )}
-                              {notification.type === 'warning' && (
-                                <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
-                              )}
-                              {notification.type === 'error' && (
-                                <AlertTriangle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
-                              )}
-                              {notification.type === 'info' && (
-                                <Bell className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
-                              )}
-                              <p className={`text-sm ${!notification.read ? 'font-medium text-neutral-800' : 'text-neutral-600'}`}>
-                                {notification.message}
-                              </p>
-                            </div>
-                            <p className="text-xs text-neutral-400 mt-1">{notification.time}</p>
-                            {notification.link && (
-                              <Link 
-                                to={notification.link} 
-                                className="text-xs text-yellow-600 hover:text-yellow-700 mt-1 inline-block"
-                                onClick={() => handleMarkNotificationAsRead(notification.id)}
-                              >
-                                View details
-                              </Link>
-                            )}
-                          </div>
-                          <div className="flex items-start ml-2">
-                            {!notification.read && (
-                              <button
-                                onClick={() => handleMarkNotificationAsRead(notification.id)}
-                                className="text-neutral-400 hover:text-neutral-600 p-1"
-                                aria-label="Mark as read"
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleDeleteNotification(notification.id)}
-                              className="text-neutral-400 hover:text-neutral-600 p-1"
-                              aria-label="Delete notification"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
+                          <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                            Pending
+                          </span>
                         </div>
                       </div>
                     ))}
                     
-                    {notifications.length === 0 && (
-                      <div className="text-center py-8">
-                        <Bell className="h-12 w-12 text-neutral-300 mx-auto mb-3" aria-hidden="true" />
-                        <p className="text-neutral-500">No notifications</p>
+                    {pendingListings.length > 0 && (
+                      <div className="mt-4 text-center">
+                        <Link 
+                          to="/dashboard/listings?status=pending" 
+                          className="text-sm text-yellow-600 hover:text-yellow-700 font-medium"
+                        >
+                          View All Pending
+                        </Link>
                       </div>
                     )}
                   </div>
-                  {notifications.length > 0 && (
-                    <div className="p-4 text-center border-t border-neutral-200">
-                      <button className="text-sm text-yellow-600 hover:text-yellow-700 font-medium">
-                        View All Notifications
-                      </button>
-                    </div>
-                  )}
+                )}
+              </div>
+              
+              {/* Rejected Listings */}
+              {rejectedListings.length > 0 && (
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-neutral-200 md:col-span-2">
+                  <h3 className="text-lg font-medium mb-4 flex items-center">
+                    <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
+                    Rejected Listings
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    {rejectedListings.map(listing => (
+                      <div key={listing.id} className="p-4 bg-red-50 rounded-lg">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-neutral-800">{listing.business_name}</p>
+                            <p className="text-sm text-neutral-500">
+                              {listing.category.replace('_', ' ')} • Rejected on {formatDate(listing.created_at)}
+                            </p>
+                            {listing.rejection_reason && (
+                              <p className="mt-2 text-sm text-red-600">
+                                <strong>Reason:</strong> {listing.rejection_reason}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex space-x-2">
+                            <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
+                              Rejected
+                            </span>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <Link 
+                            to={`/edit-listing/${listing.id}`}
+                            className="text-sm text-yellow-600 hover:text-yellow-700 font-medium"
+                          >
+                            Edit & Resubmit
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+              )}
+            </div>
+            
+            {/* Quick Actions */}
+            <div className="mt-8 bg-white rounded-xl shadow-sm p-6 border border-neutral-200">
+              <h3 className="text-lg font-medium mb-4">Quick Actions</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Link 
+                  to="/create-listing" 
+                  className="flex items-center p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
+                >
+                  <Plus className="w-5 h-5 text-yellow-600 mr-3" />
+                  <span className="font-medium text-neutral-800">Create New Listing</span>
+                </Link>
+                
+                <Link 
+                  to="/dashboard/listings" 
+                  className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  <FileText className="w-5 h-5 text-blue-600 mr-3" />
+                  <span className="font-medium text-neutral-800">Manage Listings</span>
+                </Link>
+                
+                <Link 
+                  to="/dashboard/settings" 
+                  className="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                >
+                  <Settings className="w-5 h-5 text-green-600 mr-3" />
+                  <span className="font-medium text-neutral-800">Account Settings</span>
+                </Link>
               </div>
             </div>
-          </motion.div>
+          </div>
         );
       case 'settings':
         return (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="space-y-8"
-          >
-            <h2 className="text-2xl font-bold text-neutral-800 mb-6">Account Settings</h2>
-            
-            {/* Profile Information */}
-            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-neutral-200">
-                <h3 className="text-lg font-semibold text-neutral-800">Profile Information</h3>
-              </div>
-              <div className="p-6">
-                <div className="flex flex-col md:flex-row gap-8">
-                  <div className="flex-shrink-0">
-                    <div className="relative">
-                      <div className="h-32 w-32 rounded-full bg-neutral-200 flex items-center justify-center overflow-hidden">
-                        {profile?.avatar_url ? (
-                          <img 
-                            src={profile.avatar_url} 
-                            alt="Profile" 
-                            className="h-full w-full object-cover" 
-                          />
-                        ) : (
-                          <User className="h-16 w-16 text-neutral-400" aria-hidden="true" />
-                        )}
-                      </div>
-                      <button 
-                        className="absolute bottom-0 right-0 bg-yellow-500 text-black p-2 rounded-full hover:bg-yellow-600 transition-colors"
-                        aria-label="Upload new profile picture"
-                      >
-                        <PlusCircle className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex-1 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label htmlFor="fullName" className="block text-sm font-medium text-neutral-700 mb-1">
-                          Full Name
-                        </label>
-                        <input
-                          id="fullName"
-                          type="text"
-                          defaultValue={profile?.full_name || ''}
-                          className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                          aria-describedby="fullNameHelp"
-                        />
-                        <p id="fullNameHelp" className="mt-1 text-xs text-neutral-500">
-                          Your full name as you'd like it displayed
-                        </p>
-                      </div>
-                      <div>
-                        <label htmlFor="username" className="block text-sm font-medium text-neutral-700 mb-1">
-                          Username
-                        </label>
-                        <input
-                          id="username"
-                          type="text"
-                          defaultValue={profile?.username || ''}
-                          className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                          aria-describedby="usernameHelp"
-                        />
-                        <p id="usernameHelp" className="mt-1 text-xs text-neutral-500">
-                          This will be used in your profile URL
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-1">
-                        Email Address
-                      </label>
-                      <input
-                        id="email"
-                        type="email"
-                        defaultValue={user?.email || ''}
-                        disabled
-                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg bg-neutral-50 text-neutral-500"
-                        aria-describedby="emailHelp"
-                      />
-                      <p id="emailHelp" className="mt-1 text-xs text-neutral-500">
-                        To change your email address, please contact support.
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="bio" className="block text-sm font-medium text-neutral-700 mb-1">
-                        Bio
-                      </label>
-                      <textarea
-                        id="bio"
-                        rows={4}
-                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                        placeholder="Tell us a bit about yourself..."
-                        aria-describedby="bioHelp"
-                      ></textarea>
-                      <p id="bioHelp" className="mt-1 text-xs text-neutral-500">
-                        Brief description for your profile. URLs are hyperlinked.
-                      </p>
-                    </div>
-                    
-                    <div className="flex justify-end">
-                      <button 
-                        className="px-4 py-2 bg-yellow-500 text-black rounded-lg font-medium hover:bg-yellow-600 transition-colors"
-                        aria-label="Save profile changes"
-                      >
-                        Save Changes
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Security Settings */}
-            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-neutral-200">
-                <h3 className="text-lg font-semibold text-neutral-800">Security</h3>
-              </div>
-              <div className="p-6 space-y-6">
+          <div className="animate-fadeIn">
+            <h2 className="text-xl font-semibold mb-4">Account Settings</h2>
+            <div className="bg-white rounded-lg shadow p-6">
+              <p className="text-gray-500 mb-4">Manage your account settings and preferences</p>
+              <div className="space-y-4">
                 <div>
-                  <h4 className="text-md font-medium text-neutral-800 mb-2">Password</h4>
-                  <p className="text-sm text-neutral-600 mb-4">
-                    Update your password to keep your account secure.
-                  </p>
-                  <button 
-                    className="px-4 py-2 bg-neutral-800 text-white rounded-lg font-medium hover:bg-neutral-700 transition-colors"
-                    aria-label="Change password"
-                  >
+                  <h3 className="text-md font-medium mb-2">Profile Information</h3>
+                  <p className="text-sm text-gray-500 mb-4">Update your account's profile information</p>
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-150 ease-in-out">
+                    Edit Profile
+                  </button>
+                </div>
+                <div className="border-t pt-4">
+                  <h3 className="text-md font-medium mb-2">Password</h3>
+                  <p className="text-sm text-gray-500 mb-4">Ensure your account is using a secure password</p>
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-150 ease-in-out">
                     Change Password
                   </button>
                 </div>
-                
-                <div className="pt-6 border-t border-neutral-200">
-                  <h4 className="text-md font-medium text-neutral-800 mb-2">Two-Factor Authentication</h4>
-                  <p className="text-sm text-neutral-600 mb-4">
-                    Add an extra layer of security to your account.
-                  </p>
-                  <button 
-                    className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg font-medium hover:bg-neutral-50 transition-colors"
-                    aria-label="Enable two-factor authentication"
-                  >
-                    Enable 2FA
-                  </button>
-                </div>
-                
-                <div className="pt-6 border-t border-neutral-200">
-                  <h4 className="text-md font-medium text-neutral-800 mb-2">Account Deactivation</h4>
-                  <p className="text-sm text-neutral-600 mb-4">
-                    Temporarily deactivate or permanently delete your account.
-                  </p>
-                  <button 
-                    className="px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors"
-                    aria-label="Deactivate account"
-                  >
-                    Deactivate Account
-                  </button>
-                </div>
               </div>
             </div>
-            
-            {/* Notification Preferences */}
-            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-neutral-200">
-                <h3 className="text-lg font-semibold text-neutral-800">Notification Preferences</h3>
-              </div>
-              <div className="p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-md font-medium text-neutral-800">Email Notifications</h4>
-                    <p className="text-sm text-neutral-600">Receive updates about your account via email</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer" 
-                      defaultChecked 
-                      aria-label="Toggle email notifications"
-                    />
-                    <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
-                  </label>
-                </div>
-                
-                <div className="flex items-center justify-between pt-4 border-t border-neutral-100">
-                  <div>
-                    <h4 className="text-md font-medium text-neutral-800">Listing Updates</h4>
-                    <p className="text-sm text-neutral-600">Get notified about views, inquiries, and interactions</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer" 
-                      defaultChecked 
-                      aria-label="Toggle listing update notifications"
-                    />
-                    <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
-                  </label>
-                </div>
-                
-                <div className="flex items-center justify-between pt-4 border-t border-neutral-100">
-                  <div>
-                    <h4 className="text-md font-medium text-neutral-800">Marketing Communications</h4>
-                    <p className="text-sm text-neutral-600">Receive promotional offers and updates</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer" 
-                      aria-label="Toggle marketing communications"
-                    />
-                    <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
-                  </label>
-                </div>
-                
-                <div className="pt-4 flex justify-end">
-                  <button 
-                    className="px-4 py-2 bg-yellow-500 text-black rounded-lg font-medium hover:bg-yellow-600 transition-colors"
-                    aria-label="Save notification preferences"
-                  >
-                    Save Preferences
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+          </div>
         );
       default:
         return null;
@@ -844,262 +429,88 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen bg-gray-50 w-full">
       {/* Header */}
-      <header className="bg-black shadow-md sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+      <header className="bg-charcoal shadow w-full">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center">
-            <Link to="/" className="flex items-center">
-              <img src="/Sakah logo new.png" alt="Sakah Logo" className="h-8 mr-2" />
-            </Link>
-            <div className="hidden md:block ml-6">
-              <h1 className="text-xl font-bold text-white">Dashboard</h1>
-            </div>
+            <img src="/Sakah logo new.png" alt="Sakah Logo" className="h-8 mr-2" />
+            <h1 className="text-xl font-bold text-white">Dashboard</h1>
           </div>
-          
-          <div className="flex items-center space-x-4">
-            <button 
-              className="relative text-white hover:text-yellow-400 transition-colors"
-              onClick={() => setShowNotificationsPanel(!showNotificationsPanel)}
-              aria-label={`Notifications (${notifications.filter(n => !n.read).length} unread)`}
-            >
-              <Bell className="h-6 w-6" aria-hidden="true" />
-              {notifications.filter(n => !n.read).length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-yellow-500 text-black text-xs font-bold rounded-full h-4 w-4 flex items-center justify-center">
-                  {notifications.filter(n => !n.read).length}
-                </span>
-              )}
-            </button>
-            
-            <div className="relative group">
-              <button 
-                className="flex items-center space-x-2 text-white hover:text-yellow-400 transition-colors"
-                aria-label="User menu"
-                aria-expanded="false"
-                aria-haspopup="true"
-              >
-                <div className="h-8 w-8 rounded-full bg-neutral-700 flex items-center justify-center overflow-hidden">
-                  {profile?.avatar_url ? (
-                    <img 
-                      src={profile.avatar_url} 
-                      alt="" 
-                      className="h-full w-full object-cover" 
-                    />
-                  ) : (
-                    <User className="h-5 w-5" aria-hidden="true" />
-                  )}
-                </div>
-                <span className="hidden md:inline-block">{profile?.full_name || profile?.username || 'User'}</span>
-              </button>
-              
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50 hidden group-hover:block" role="menu">
-                <Link 
-                  to="/dashboard?tab=settings" 
-                  className="block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                  role="menuitem"
-                >
-                  Profile Settings
-                </Link>
-                {isAdmin && (
-                  <Link 
-                    to="/admin" 
-                    className="block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-                    role="menuitem"
-                  >
-                    Admin Panel
-                  </Link>
-                )}
-                <button 
-                  onClick={handleSignOut}
-                  className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-neutral-100"
-                  role="menuitem"
-                >
-                  Sign Out
-                </button>
-              </div>
-            </div>
-          </div>
+          <button
+            onClick={handleSignOut}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-jet-black bg-primary hover:bg-jet-black hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition duration-150 ease-in-out"
+          >
+            Sign Out
+          </button>
         </div>
       </header>
-
-      {/* Notifications Panel */}
-      {showNotificationsPanel && (
-        <div className="fixed inset-0 z-40 overflow-hidden" aria-labelledby="notifications-panel">
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute inset-0 bg-neutral-500 bg-opacity-75 transition-opacity" onClick={() => setShowNotificationsPanel(false)}></div>
-            <section className="absolute inset-y-0 right-0 pl-10 max-w-full flex" aria-labelledby="notifications-panel-heading">
-              <div className="relative w-screen max-w-md">
-                <div className="h-full flex flex-col bg-white shadow-xl overflow-y-auto">
-                  <div className="px-4 py-6 sm:px-6 border-b border-neutral-200">
-                    <div className="flex items-start justify-between">
-                      <h2 id="notifications-panel-heading" className="text-lg font-medium text-neutral-900">Notifications</h2>
-                      <div className="ml-3 h-7 flex items-center">
-                        <button
-                          onClick={() => setShowNotificationsPanel(false)}
-                          className="bg-white rounded-md text-neutral-400 hover:text-neutral-500 focus:outline-none"
-                          aria-label="Close panel"
-                        >
-                          <X className="h-6 w-6" aria-hidden="true" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="mt-1">
-                      <p className="text-sm text-neutral-500">
-                        You have {notifications.filter(n => !n.read).length} unread notifications
-                      </p>
-                    </div>
-                    {notifications.length > 0 && (
-                      <div className="mt-4 flex justify-end">
-                        <button
-                          onClick={handleMarkAllNotificationsAsRead}
-                          className="text-sm text-yellow-600 hover:text-yellow-700"
-                          aria-label="Mark all as read"
-                        >
-                          Mark all as read
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 divide-y divide-neutral-200 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <div className="text-center py-12">
-                        <Bell className="h-12 w-12 text-neutral-300 mx-auto mb-3\" aria-hidden="true" />
-                        <p className="text-neutral-500">No notifications</p>
-                      </div>
-                    ) : (
-                      notifications.map(notification => (
-                        <div 
-                          key={notification.id} 
-                          className={`p-4 hover:bg-neutral-50 transition-colors ${!notification.read ? 'bg-yellow-50' : ''}`}
-                        >
-                          <div className="flex justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-start">
-                                {notification.type === 'success' && (
-                                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
-                                )}
-                                {notification.type === 'warning' && (
-                                  <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
-                                )}
-                                {notification.type === 'error' && (
-                                  <AlertTriangle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
-                                )}
-                                {notification.type === 'info' && (
-                                  <Bell className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5\" aria-hidden="true" />
-                                )}
-                                <p className={`text-sm ${!notification.read ? 'font-medium text-neutral-800' : 'text-neutral-600'}`}>
-                                  {notification.message}
-                                </p>
-                              </div>
-                              <p className="text-xs text-neutral-400 mt-1">{notification.time}</p>
-                              {notification.link && (
-                                <Link 
-                                  to={notification.link} 
-                                  className="text-xs text-yellow-600 hover:text-yellow-700 mt-1 inline-block"
-                                  onClick={() => {
-                                    handleMarkNotificationAsRead(notification.id);
-                                    setShowNotificationsPanel(false);
-                                  }}
-                                >
-                                  View details
-                                </Link>
-                              )}
-                            </div>
-                            <div className="flex items-start ml-2">
-                              {!notification.read && (
-                                <button
-                                  onClick={() => handleMarkNotificationAsRead(notification.id)}
-                                  className="text-neutral-400 hover:text-neutral-600 p-1"
-                                  aria-label="Mark as read"
-                                >
-                                  <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleDeleteNotification(notification.id)}
-                                className="text-neutral-400 hover:text-neutral-600 p-1"
-                                aria-label="Delete notification"
-                              >
-                                <X className="w-4 h-4" aria-hidden="true" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-        </div>
-      )}
 
       {/* Main content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
           </div>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-8">
+          <div className="flex flex-col md:flex-row gap-8">
             {/* Sidebar */}
-            <div className="w-full lg:w-64 flex-shrink-0">
-              <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden sticky top-24">
-                <nav className="p-4 space-y-1" aria-label="Dashboard navigation">
+            <div className="w-full md:w-64 flex-shrink-0">
+              <div className="bg-charcoal rounded-lg shadow overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-700">
+                  <h2 className="text-lg font-medium text-white">Navigation</h2>
+                </div>
+                <nav className="p-4 space-y-1">
                   <button
                     onClick={() => setActiveTab('overview')}
-                    className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'overview' ? 'bg-yellow-500 text-black' : 'text-neutral-700 hover:bg-neutral-100'}`}
-                    aria-current={activeTab === 'overview' ? 'page' : undefined}
+                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'overview' ? 'bg-primary text-jet-black' : 'text-white hover:bg-charcoal hover:bg-opacity-80'}`}
                   >
-                    <Home className={`mr-3 h-5 w-5 ${activeTab === 'overview' ? 'text-black' : 'text-neutral-500'}`} aria-hidden="true" />
-                    Dashboard Overview
+                    <svg className={`mr-3 h-5 w-5 ${activeTab === 'overview' ? 'text-jet-black' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                    Overview
                   </button>
                   <button
                     onClick={() => setActiveTab('listings')}
-                    className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'listings' ? 'bg-yellow-500 text-black' : 'text-neutral-700 hover:bg-neutral-100'}`}
-                    aria-current={activeTab === 'listings' ? 'page' : undefined}
+                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'listings' ? 'bg-primary text-jet-black' : 'text-white hover:bg-charcoal hover:bg-opacity-80'}`}
                   >
-                    <ListChecks className={`mr-3 h-5 w-5 ${activeTab === 'listings' ? 'text-black' : 'text-neutral-500'}`} aria-hidden="true" />
+                    <svg className={`mr-3 h-5 w-5 ${activeTab === 'listings' ? 'text-jet-black' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
                     My Listings
                   </button>
                   <button
                     onClick={() => setActiveTab('settings')}
-                    className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'settings' ? 'bg-yellow-500 text-black' : 'text-neutral-700 hover:bg-neutral-100'}`}
-                    aria-current={activeTab === 'settings' ? 'page' : undefined}
+                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'settings' ? 'bg-primary text-jet-black' : 'text-white hover:bg-charcoal hover:bg-opacity-80'}`}
                   >
-                    <Settings className={`mr-3 h-5 w-5 ${activeTab === 'settings' ? 'text-black' : 'text-neutral-500'}`} aria-hidden="true" />
-                    Account Settings
+                    <svg className={`mr-3 h-5 w-5 ${activeTab === 'settings' ? 'text-jet-black' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Settings
                   </button>
                   <Link
                     to="/create-listing"
-                    className="w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg text-neutral-700 hover:bg-neutral-100 transition-colors"
-                    aria-label="Create a new listing"
+                    className="w-full flex items-center px-3 py-2 text-sm font-medium rounded-md text-white hover:bg-charcoal hover:bg-opacity-80"
                   >
-                    <PlusCircle className="mr-3 h-5 w-5 text-neutral-500" aria-hidden="true" />
+                    <svg className="mr-3 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
                     Create Listing
                   </Link>
                   
                   {/* Admin Panel Link - Only visible for admin users */}
-                  {isAdmin && (
+                  {profile?.role === 'admin' && (
                     <Link
                       to="/admin"
-                      className="w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg bg-neutral-800 text-white hover:bg-neutral-700 transition-colors"
-                      aria-label="Go to admin panel"
+                      className="w-full flex items-center px-3 py-2 text-sm font-medium rounded-md bg-yellow-500 text-black hover:bg-yellow-600"
                     >
-                      <ShieldCheck className="mr-3 h-5 w-5 text-yellow-500" aria-hidden="true" />
+                      <svg className="mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
                       Admin Panel
                     </Link>
                   )}
-                  
-                  <button
-                    onClick={handleSignOut}
-                    className="w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg text-red-600 hover:bg-red-50 transition-colors mt-4"
-                    aria-label="Sign out"
-                  >
-                    <LogOut className="mr-3 h-5 w-5 text-red-500" aria-hidden="true" />
-                    Sign Out
-                  </button>
                 </nav>
               </div>
             </div>

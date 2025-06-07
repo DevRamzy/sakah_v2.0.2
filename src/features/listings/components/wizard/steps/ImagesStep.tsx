@@ -22,6 +22,7 @@ const ImagesStep: React.FC = () => {
   const [pendingPreviews, setPendingPreviews] = useState<{id: string, url: string, isPrimary: boolean}[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [submissionSuccess, setSubmissionSuccess] = useState<string | null>(null);
 
   // Handle drag events
   const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
@@ -258,9 +259,10 @@ const ImagesStep: React.FC = () => {
   };
 
   // Function to upload all pending images and save the listing
-  const handleSubmit = async (publish: boolean) => {
+  const handleSubmit = async () => {
     setIsSubmitting(true);
     setSubmissionError(null);
+    setSubmissionSuccess(null);
     
     try {
       // If there are no images at all, show an error
@@ -369,17 +371,7 @@ const ImagesStep: React.FC = () => {
         }
       }
       
-      // If publish flag is true, update the listing to published state
-      // Use the listingId from the first saveListing call to prevent duplicate creation
-      if (publish) {
-        // Update the existing listing instead of creating a new one
-        const publishSuccess = await updateListing(listingId, { isPublished: true });
-        if (!publishSuccess) {
-          setSubmissionError('Listing saved but failed to publish. You can try publishing later.');
-          setIsSubmitting(false);
-          return;
-        }
-      }
+      setSubmissionSuccess('Your listing has been submitted for review. You will be notified once it is approved.');
     } catch (error) {
       console.error('Submission error:', error);
       setSubmissionError(error instanceof Error ? error.message : 'An unknown error occurred');
@@ -466,6 +458,12 @@ const ImagesStep: React.FC = () => {
       {submissionError && (
         <div className="text-red-600 text-sm mt-2 p-3 bg-red-50 rounded-md">
           {submissionError}
+        </div>
+      )}
+      
+      {submissionSuccess && (
+        <div className="text-green-600 text-sm mt-2 p-3 bg-green-50 rounded-md">
+          {submissionSuccess}
         </div>
       )}
 
@@ -602,28 +600,25 @@ const ImagesStep: React.FC = () => {
         </ul>
       </div>
       
+      {/* Admin approval notice */}
+      <div className="bg-yellow-50 p-4 rounded-md mt-4 border border-yellow-200">
+        <h3 className="text-sm font-medium text-yellow-800 mb-2 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          Admin Approval Required
+        </h3>
+        <p className="text-sm text-yellow-700">
+          Your listing will be reviewed by an administrator before it appears on the platform. 
+          This process typically takes 24-48 hours. You'll receive a notification once your listing is approved.
+        </p>
+      </div>
+      
       {/* Submission buttons */}
       <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 mt-8">
         <button
           type="button"
-          onClick={() => handleSubmit(false)}
-          disabled={isSubmitting || isLoading}
-          className="px-6 py-2 bg-white border border-amber-500 text-amber-500 rounded-md hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors duration-200"
-        >
-          {isSubmitting ? (
-            <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Saving...
-            </span>
-          ) : 'Save as Draft'}
-        </button>
-        
-        <button
-          type="button"
-          onClick={() => handleSubmit(true)}
+          onClick={handleSubmit}
           disabled={isSubmitting || isLoading}
           className="px-6 py-2 bg-amber-500 text-black rounded-md hover:bg-black hover:text-amber-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors duration-200"
         >

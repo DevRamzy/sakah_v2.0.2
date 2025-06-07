@@ -102,6 +102,8 @@ export interface BaseListing {
   createdAt?: Date;
   updatedAt?: Date;
   isPublished: boolean;
+  status?: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
   businessHours?: BusinessHours[];
   services?: Service[];
   images?: ListingImage[];

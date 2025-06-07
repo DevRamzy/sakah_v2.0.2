@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getUserListings } from '../../services/listingService';
 import type { BaseListing } from '../../../../types/listings';
+import { Edit, Eye, Trash2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
 interface ListingsTabProps {
   userId: string;
@@ -11,6 +12,7 @@ const ListingsTab: React.FC<ListingsTabProps> = ({ userId }) => {
   const [listings, setListings] = useState<BaseListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'approved' | 'pending' | 'rejected'>('all');
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -31,19 +33,32 @@ const ListingsTab: React.FC<ListingsTabProps> = ({ userId }) => {
   }, [userId]);
 
   // Function to get status badge based on listing status
-  const getStatusBadge = (isPublished: boolean) => {
-    if (isPublished) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-          Published
-        </span>
-      );
-    } else {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-          Draft
-        </span>
-      );
+  const getStatusBadge = (listing: BaseListing) => {
+    const status = (listing as any).status || (listing.isPublished ? 'approved' : 'pending');
+    
+    switch(status) {
+      case 'approved':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Approved
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+            <AlertCircle className="w-3 h-3 mr-1" />
+            Rejected
+          </span>
+        );
+      case 'pending':
+      default:
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            <Clock className="w-3 h-3 mr-1" />
+            Pending
+          </span>
+        );
     }
   };
 
@@ -75,6 +90,14 @@ const ListingsTab: React.FC<ListingsTabProps> = ({ userId }) => {
     });
   };
 
+  // Filter listings based on active filter
+  const filteredListings = listings.filter(listing => {
+    if (activeFilter === 'all') return true;
+    
+    const status = (listing as any).status || (listing.isPublished ? 'approved' : 'pending');
+    return status === activeFilter;
+  });
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -88,9 +111,7 @@ const ListingsTab: React.FC<ListingsTabProps> = ({ userId }) => {
       <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
         <div className="flex">
           <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
+            <AlertCircle className="h-5 w-5 text-red-400" />
           </div>
           <div className="ml-3">
             <p className="text-sm text-red-700">{error}</p>
@@ -113,9 +134,7 @@ const ListingsTab: React.FC<ListingsTabProps> = ({ userId }) => {
             to="/create-listing"
             className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
           >
-            <svg className="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
+            <Plus className="-ml-1 mr-2 h-5 w-5" />
             Create Listing
           </Link>
         </div>
@@ -125,78 +144,171 @@ const ListingsTab: React.FC<ListingsTabProps> = ({ userId }) => {
 
   return (
     <div className="animate-fadeIn">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold">My Listings</h2>
         <Link
           to="/create-listing"
           className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
         >
-          <svg className="-ml-0.5 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
+          <Plus className="-ml-0.5 mr-2 h-4 w-4" />
           New Listing
         </Link>
       </div>
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
-          {listings.map((listing) => (
-            <li key={listing.id}>
-              <div className="px-4 py-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <p className="text-sm font-medium text-primary truncate">{listing.businessName}</p>
-                    <div className="ml-2 flex-shrink-0 flex">
-                      {getStatusBadge(listing.isPublished)}
+      {/* Filter tabs */}
+      <div className="flex border-b border-gray-200 mb-6">
+        <button
+          onClick={() => setActiveFilter('all')}
+          className={`px-4 py-2 text-sm font-medium ${
+            activeFilter === 'all'
+              ? 'border-b-2 border-primary text-primary'
+              : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          All
+        </button>
+        <button
+          onClick={() => setActiveFilter('approved')}
+          className={`px-4 py-2 text-sm font-medium ${
+            activeFilter === 'approved'
+              ? 'border-b-2 border-green-500 text-green-600'
+              : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          Approved
+        </button>
+        <button
+          onClick={() => setActiveFilter('pending')}
+          className={`px-4 py-2 text-sm font-medium ${
+            activeFilter === 'pending'
+              ? 'border-b-2 border-yellow-500 text-yellow-600'
+              : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          Pending
+        </button>
+        <button
+          onClick={() => setActiveFilter('rejected')}
+          className={`px-4 py-2 text-sm font-medium ${
+            activeFilter === 'rejected'
+              ? 'border-b-2 border-red-500 text-red-600'
+              : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          Rejected
+        </button>
+      </div>
+
+      {filteredListings.length === 0 ? (
+        <div className="bg-white shadow overflow-hidden sm:rounded-md p-6 text-center">
+          <p className="text-gray-500">No {activeFilter !== 'all' ? activeFilter : ''} listings found</p>
+        </div>
+      ) : (
+        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <ul className="divide-y divide-gray-200">
+            {filteredListings.map((listing) => {
+              const status = (listing as any).status || (listing.isPublished ? 'approved' : 'pending');
+              const rejectionReason = (listing as any).rejection_reason;
+              
+              return (
+                <li key={listing.id}>
+                  <div className="px-4 py-4 sm:px-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <p className="text-sm font-medium text-primary truncate">{listing.businessName}</p>
+                        <div className="ml-2 flex-shrink-0 flex">
+                          {getStatusBadge(listing)}
+                        </div>
+                      </div>
+                      <div className="ml-2 flex-shrink-0 flex">
+                        {getCategoryBadge(listing.category)}
+                      </div>
+                    </div>
+                    <div className="mt-2 sm:flex sm:justify-between">
+                      <div className="sm:flex">
+                        <p className="flex items-center text-sm text-gray-500">
+                          <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                          </svg>
+                          {listing.location}
+                        </p>
+                        {listing.subcategory && (
+                          <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
+                            <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                            </svg>
+                            {listing.subcategory}
+                          </p>
+                        )}
+                      </div>
+                      <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                        <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                        </svg>
+                        <p>Created on <time dateTime={listing.createdAt ? listing.createdAt.toISOString() : undefined}>{formatDate(listing.createdAt)}</time></p>
+                      </div>
+                    </div>
+                    
+                    {/* Show rejection reason if listing is rejected */}
+                    {status === 'rejected' && rejectionReason && (
+                      <div className="mt-2 bg-red-50 p-3 rounded-md">
+                        <div className="flex">
+                          <div className="flex-shrink-0">
+                            <AlertCircle className="h-5 w-5 text-red-400" />
+                          </div>
+                          <div className="ml-3">
+                            <h3 className="text-sm font-medium text-red-800">Rejection Reason:</h3>
+                            <div className="mt-1 text-sm text-red-700">
+                              <p>{rejectionReason}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="mt-3 flex justify-end space-x-3">
+                      <Link
+                        to={`/listings/${listing.id}`}
+                        className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                      >
+                        <Eye className="mr-1.5 h-4 w-4" />
+                        View
+                      </Link>
+                      
+                      {/* Only allow editing if not approved */}
+                      {status !== 'approved' && (
+                        <Link
+                          to={`/edit-listing/${listing.id}`}
+                          className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                        >
+                          <Edit className="mr-1.5 h-4 w-4" />
+                          Edit
+                        </Link>
+                      )}
+                      
+                      {/* Only allow deletion if not approved */}
+                      {status !== 'approved' && (
+                        <button
+                          className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-red-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to delete this listing? This action cannot be undone.')) {
+                              // Delete logic would go here
+                              console.log('Delete listing:', listing.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="mr-1.5 h-4 w-4" />
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="ml-2 flex-shrink-0 flex">
-                    {getCategoryBadge(listing.category)}
-                  </div>
-                </div>
-                <div className="mt-2 sm:flex sm:justify-between">
-                  <div className="sm:flex">
-                    <p className="flex items-center text-sm text-gray-500">
-                      <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                      </svg>
-                      {listing.location}
-                    </p>
-                    {listing.subcategory && (
-                      <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
-                        <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                        </svg>
-                        {listing.subcategory}
-                      </p>
-                    )}
-                  </div>
-                  <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                    <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                    <p>Created on <time dateTime={listing.createdAt ? listing.createdAt.toISOString() : undefined}>{formatDate(listing.createdAt)}</time></p>
-                  </div>
-                </div>
-                <div className="mt-3 flex justify-end space-x-3">
-                  <Link
-                    to={`/listings/${listing.id}`}
-                    className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-                  >
-                    View
-                  </Link>
-                  <Link
-                    to={`/edit-listing/${listing.id}`}
-                    className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-                  >
-                    Edit
-                  </Link>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };

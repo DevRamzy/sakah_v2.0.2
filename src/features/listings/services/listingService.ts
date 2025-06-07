@@ -22,6 +22,7 @@ export const createListing = async (listing: Omit<BaseListing, 'id' | 'createdAt
   propertyDetails?: PropertyDetails;
   autoDealershipDetails?: AutoDealershipDetails;
   storeDetails?: any; // Add store details type later
+  status?: string;
 }): Promise<string | null> => {
   try {
     console.log('Creating listing with category:', listing.category);
@@ -39,7 +40,8 @@ export const createListing = async (listing: Omit<BaseListing, 'id' | 'createdAt
         phone: listing.phone || null,
         email: listing.email || null,
         website: listing.website || null,
-        is_published: listing.isPublished
+        is_published: listing.isPublished,
+        status: listing.status || 'pending' // Default to pending for admin approval
       })
       .select('id')
       .single();
@@ -219,7 +221,9 @@ export const getListingById = async (id: string): Promise<Listing | null> => {
       website: listingData.website || undefined,
       createdAt: new Date(listingData.created_at),
       updatedAt: new Date(listingData.updated_at),
-      isPublished: listingData.is_published
+      isPublished: listingData.is_published,
+      status: listingData.status || (listingData.is_published ? 'approved' : 'pending'),
+      rejectionReason: listingData.rejection_reason
     };
 
     // Get business hours from the new business_hours table
@@ -475,7 +479,9 @@ export const getUserListings = async (userId: string): Promise<BaseListing[]> =>
       website: listing.website || undefined,
       createdAt: new Date(listing.created_at),
       updatedAt: new Date(listing.updated_at),
-      isPublished: listing.is_published
+      isPublished: listing.is_published,
+      status: listing.status || (listing.is_published ? 'approved' : 'pending'),
+      rejectionReason: listing.rejection_reason
     }));
   } catch (error) {
     console.error('Error getting user listings:', error);
@@ -507,7 +513,8 @@ export const getPublishedListings = async (params?: GetPublishedListingsParams):
     let query = supabase
       .from('listings')
       .select('*', { count: 'exact' })
-      .eq('is_published', true);
+      .eq('is_published', true)
+      .eq('status', 'approved'); // Only show approved listings
     
     // Apply search filter if provided
     if (params?.searchTerm) {
@@ -592,6 +599,7 @@ export const getPublishedListings = async (params?: GetPublishedListingsParams):
       createdAt: new Date(listing.created_at),
       updatedAt: new Date(listing.updated_at),
       isPublished: listing.is_published,
+      status: listing.status || 'approved',
       images: imagesByListingId[listing.id] || []
       // businessHours and services are intentionally not fetched for this overview list
     }));
@@ -625,6 +633,18 @@ export const updateListing = async (
     if (listing.email !== undefined) updateData.email = listing.email;
     if (listing.website !== undefined) updateData.website = listing.website;
     if (listing.isPublished !== undefined) updateData.is_published = listing.isPublished;
+    
+    // If updating a rejected listing, reset status to pending for re-review
+    const { data: currentListing } = await supabase
+      .from('listings')
+      .select('status')
+      .eq('id', id)
+      .single();
+      
+    if (currentListing?.status === 'rejected') {
+      updateData.status = 'pending';
+      updateData.rejection_reason = null;
+    }
 
     if (Object.keys(updateData).length > 0) {
       const { error: listingError } = await supabase
