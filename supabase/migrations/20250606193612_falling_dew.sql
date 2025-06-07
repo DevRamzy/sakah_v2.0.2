@@ -19,6 +19,11 @@ DROP POLICY IF EXISTS "Admins can update all profiles" ON profiles;
 DROP POLICY IF EXISTS "Users can view own profile and admins can view all" ON profiles;
 DROP POLICY IF EXISTS "Users can update own profile and admins can update all" ON profiles;
 
+-- Also drop the new policies if they already exist (in case this migration was partially applied)
+DROP POLICY IF EXISTS "Public can view profiles" ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+
 -- Create a simpler policy for viewing profiles
 CREATE POLICY "Public can view profiles"
   ON profiles FOR SELECT
@@ -34,12 +39,5 @@ CREATE POLICY "Users can insert own profile"
   ON profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
 
--- Log this migration
-INSERT INTO admin_activity_logs (admin_id, action, entity_type, entity_id, details)
-VALUES (
-  '00000000-0000-0000-0000-000000000000',
-  'database_migration',
-  'profiles',
-  '00000000-0000-0000-0000-000000000000',
-  '{"description": "Fixed infinite recursion in profiles table RLS policies"}'
-);
+-- Logging migration is skipped to avoid foreign key constraint errors
+-- You can manually log this migration after it's applied if needed

@@ -1,4 +1,4 @@
-// @ts-nocheck - Temporarily suppress TypeScript errors until Supabase is properly configured
+// AuthContext provides authentication state and profile management for the application
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
@@ -20,6 +20,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
+  profileFetchFailed: boolean;
   signOut: () => Promise<void>;
   checkIsAdmin: () => boolean;
   refreshProfile: () => Promise<void>;
@@ -36,205 +37,407 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Start with loading true to prevent premature data fetching
+  // This is used to determine when to fall back to email-based admin detection
+  const [profileFetchFailed, setProfileFetchFailed] = useState(false); // Track profile fetch failures for fallback handling
 
-  // Function to fetch user profile from the database
-  // Flag to prevent infinite recursion when fetching profile fails due to RLS issues
-  const [profileFetchFailed, setProfileFetchFailed] = useState(false);
-  const [profileFetchAttempts, setProfileFetchAttempts] = useState(0);
-  const MAX_PROFILE_FETCH_ATTEMPTS = 2;
-
-  const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
-    // If we've already detected an infinite recursion issue, return a default profile
-    if (profileFetchFailed) {
-      console.log('[AuthContext] Using default profile due to previous RLS error');
-      return {
-        id: userId,
-        role: 'user', // Default to regular user for safety
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      } as UserProfile;
-    }
-
-    try {
-      console.log('[AuthContext] Fetching user profile for:', userId);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('[AuthContext] Error fetching user profile:', error);
-        
-        // Check for infinite recursion error in RLS policy
-        if (error.message && error.message.includes('infinite recursion')) {
-          console.log('[AuthContext] Detected infinite recursion in RLS policy, using default profile');
-          setProfileFetchFailed(true);
-          return {
-            id: userId,
-            role: 'user', // Default to regular user for safety
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          } as UserProfile;
-        }
-        
-        // If the profile doesn't exist, create a default one
-        if (error.code === 'PGRST116') { // No rows returned
-          console.log('[AuthContext] Profile not found, creating default profile');
-          return {
-            id: userId,
-            role: 'user',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          } as UserProfile;
-        }
-        
-        // Increment attempt counter
-        setProfileFetchAttempts(prev => prev + 1);
-        
-        // If we've tried too many times, use a default profile
-        if (profileFetchAttempts >= MAX_PROFILE_FETCH_ATTEMPTS) {
-          console.log('[AuthContext] Max profile fetch attempts reached, using default profile');
-          setProfileFetchFailed(true);
-          return {
-            id: userId,
-            role: 'user',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          } as UserProfile;
-        }
-        
-        return null;
-      }
-
-      console.log('[AuthContext] Profile data retrieved:', data ? 'Data exists' : 'No data');
-      return data as UserProfile;
-    } catch (error) {
-      console.error('[AuthContext] Exception fetching user profile:', error);
-      // For any other unexpected errors, use a default profile
-      setProfileFetchFailed(true);
-      return {
-        id: userId,
-        role: 'user',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      } as UserProfile;
-    }
-  };
-
-  // Function to refresh the user profile
+  // Function to refresh the user profile - using the same approach as background fetching
   const refreshProfile = async () => {
-    console.log('[AuthContext] Profile refresh requested');
-    if (!user?.id) {
-      console.log('[AuthContext] No user ID available for profile refresh');
-      return;
-    }
+    if (!user) return;
+    
+    console.log('[AuthContext] Refreshing profile for user:', user.id);
+    setLoading(true);
     
     try {
-      console.log('[AuthContext] Fetching updated profile for:', user.id);
-      const userProfile = await fetchUserProfile(user.id);
-      console.log('[AuthContext] Updated profile retrieved:', userProfile ? 'Profile exists' : 'No profile');
-      setProfile(userProfile);
-      setIsAdmin(userProfile?.role === 'admin');
-      console.log('[AuthContext] Updated admin status:', userProfile?.role === 'admin');
+      // Determine admin status directly from email (matching our RLS policies)
+      const isAdminUser = Boolean(user.email?.includes('admin') || user.email?.endsWith('@sakah.online'));
+      console.log('[AuthContext] Admin check from email during refresh:', isAdminUser ? 'Is admin' : 'Not admin');
+      
+      // Set admin status immediately based on email
+      setIsAdmin(isAdminUser);
+      
+      // First try to get user data directly from auth.getUser() - bypasses RLS
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('[AuthContext] Error getting auth user during refresh:', authError);
+        throw authError;
+      }
+      
+      if (!authUser) {
+        console.error('[AuthContext] No auth user found during refresh');
+        throw new Error('No auth user found');
+      }
+      
+      // Now try to get profile - this might work with our RLS policies
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      if (error) {
+        // If we get permission denied, we'll create a profile based on auth user
+        if (error.message.includes('permission denied')) {
+          console.log('[AuthContext] Permission denied for profile during refresh, using auth user data');
+          // Continue execution - we'll create a profile below
+        } else {
+          console.error('[AuthContext] Error fetching profile during refresh:', error);
+          throw error;
+        }
+      }
+      
+      // If we successfully got profile data from the database, use it
+      if (profileData) {
+        console.log('[AuthContext] Profile refreshed successfully');
+        setProfile(profileData);
+        // Only update admin status if it's different from email-based check
+        if ((profileData.role === 'admin') !== isAdminUser) {
+          console.log('[AuthContext] Updating admin status from profile during refresh:', profileData.role);
+          setIsAdmin(profileData.role === 'admin');
+        }
+      } else {
+        // No profile found or permission denied - create a default profile
+        console.log('[AuthContext] Creating default profile from auth user data during refresh');
+        
+        // Create default profile using auth user data
+        const defaultProfile = {
+          id: user.id,
+          role: isAdminUser ? 'admin' : 'user',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          // Add any additional fields from auth user if available
+          full_name: authUser.user_metadata?.full_name || '',
+          avatar_url: authUser.user_metadata?.avatar_url || ''
+        };
+        
+        // Set the profile in state
+        setProfile(defaultProfile as UserProfile);
+        
+        // Check if profile exists first to avoid duplicate key errors
+        try {
+          console.log('[AuthContext] Checking if profile exists before creating during refresh');
+          const { count, error: countError } = await supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .eq('id', user.id);
+            
+          if (countError) {
+            console.log('[AuthContext] Error checking profile existence during refresh:', countError);
+            // Continue anyway and try to create
+          } else if (count && count > 0) {
+            console.log('[AuthContext] Profile already exists during refresh, skipping creation');
+            return; // Skip creation if profile exists
+          }
+          
+          // Try to create the profile in the database - but don't block on this
+          console.log('[AuthContext] Attempting to create profile in database during refresh');
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert([
+              {
+                id: user.id,
+                role: isAdminUser ? 'admin' : 'user',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                full_name: authUser.user_metadata?.full_name || '',
+                avatar_url: authUser.user_metadata?.avatar_url || ''
+              }
+            ]);
+            
+          if (insertError) {
+            // If we get permission denied here, it's expected with our RLS policies
+            if (insertError.message.includes('permission denied')) {
+              console.log('[AuthContext] Permission denied creating profile during refresh - this is expected with RLS');
+            } else if (insertError.message.includes('duplicate key')) {
+              console.log('[AuthContext] Profile already exists during refresh (duplicate key)');
+            } else {
+              console.error('[AuthContext] Error creating profile during refresh:', insertError);
+            }
+          } else {
+            console.log('[AuthContext] Profile created successfully during refresh');
+          }
+        } catch (insertError) {
+          console.error('[AuthContext] Exception creating profile during refresh:', insertError);
+        }
+      }
     } catch (error) {
-      console.error('[AuthContext] Error refreshing profile:', error);
+      console.error('[AuthContext] Exception in refreshProfile:', error);
+      setProfileFetchFailed(true);
+      
+      // Even on error, create a fallback profile based on email
+      if (user) {
+        console.log('[AuthContext] Creating fallback profile after refresh error');
+        const fallbackProfile = {
+          id: user.id,
+          role: Boolean(user.email?.includes('admin') || user.email?.endsWith('@sakah.online')) ? 'admin' : 'user',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setProfile(fallbackProfile as UserProfile);
+      }
+    } finally {
+      setLoading(false);
+      console.log('[AuthContext] Profile refresh complete, loading set to false');
     }
   };
 
   // Function to check if the current user is an admin
   const checkIsAdmin = () => {
-    return profile?.role === 'admin';
+    // First check if we have a profile with admin role
+    if (profile?.role === 'admin') return true;
+    
+    // Fallback to email check if profile fetch failed or role is not set
+    if (profileFetchFailed && user?.email) {
+      console.log('[AuthContext] Using email fallback for admin check due to profile fetch failure');
+      return Boolean(user.email.includes('admin') || user.email.endsWith('@sakah.online'));
+    } else if (user?.email) {
+      return Boolean(user.email.includes('admin') || user.email.endsWith('@sakah.online'));
+    }
+    
+    return false;
   };
 
   useEffect(() => {
-    const getSession = async () => {
-      console.log('[AuthContext] Initial auth check - Setting loading to true');
-      setLoading(true);
+    console.log('[AuthContext] Initial auth check starting');
+    setLoading(true);
+    
+    // Get the initial session - simplified approach
+    const getInitialSession = async () => {
       try {
-        console.log('[AuthContext] Getting session from Supabase');
-        const { data: { session }, error } = await supabase.auth.getSession();
+        console.log('[AuthContext] Fetching session');
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('[AuthContext] Session fetched:', session ? 'Has session' : 'No session');
         
-        if (error) {
-          console.error('[AuthContext] Error getting session:', error);
-          setLoading(false);
-          return;
-        }
-        
-        console.log('[AuthContext] Session retrieved:', session ? 'Session exists' : 'No session');
+        // Set session and user immediately
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          console.log('[AuthContext] User found, fetching profile for:', session.user.id);
+          // Determine admin status directly from email - fast path
+          const isAdminUser = Boolean(session.user.email?.includes('admin') || session.user.email?.endsWith('@sakah.online'));
+          console.log('[AuthContext] Quick admin check from email:', isAdminUser ? 'Is admin' : 'Not admin');
+          
+          // Set admin status immediately based on email
+          setIsAdmin(isAdminUser);
+          
+          // Create a minimal profile immediately to ensure UI can proceed
+          const minimalProfile = {
+            id: session.user.id,
+            role: isAdminUser ? 'admin' : 'user',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          setProfile(minimalProfile as UserProfile);
+          
+          // Set loading to false immediately to unblock UI
+          setLoading(false);
+          
+          // Fetch complete profile in background - completely non-blocking
+          setTimeout(() => {
+            fetchProfileInBackground(session.user.id, isAdminUser);
+          }, 0);
+        } else {
+          console.log('[AuthContext] No user in session');
+          setProfile(null);
+          setIsAdmin(false);
+          setLoading(false); // Done loading if no user
+        }
+      } catch (error) {
+        console.error('[AuthContext] Exception in getInitialSession:', error);
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setIsAdmin(false);
+        setLoading(false); // Done loading on error
+      }
+    };
+    
+    // Fetch profile in background without blocking the UI
+    const fetchProfileInBackground = async (userId: string, isAdminFromEmail: boolean) => {
+      // We're already in a non-blocking context, but we'll add extra protection
+      // by wrapping in a try/catch that won't affect the UI
+      try {
+        console.log('[AuthContext] Fetching profile in background for:', userId);
+        
+        // First try to get user data directly from auth.getUser() - bypasses RLS
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError) {
+          console.error('[AuthContext] Error getting auth user in background:', authError);
+          // Don't throw, just return - we already have a minimal profile
+          return;
+        }
+        
+        if (!authUser) {
+          console.error('[AuthContext] No auth user found in background fetch');
+          // Don't throw, just return - we already have a minimal profile
+          return;
+        }
+        
+        // Now try to get profile - this might work with our RLS policies
+        const { data: profileData, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (error) {
+          // If we get permission denied, we'll create a profile based on auth user
+          if (error.message.includes('permission denied')) {
+            console.log('[AuthContext] Permission denied for profile, using auth user data');
+            // Continue execution - we'll create a profile below
+          } else {
+            console.log('[AuthContext] Error fetching profile in background:', error);
+            // Don't throw, just continue with what we have
+          }
+        }
+        
+        // If we successfully got profile data from the database, use it
+        if (profileData) {
+          console.log('[AuthContext] Profile fetched successfully in background');
+          setProfile(profileData);
+          // Only update admin status if it's different from email-based check
+          if ((profileData.role === 'admin') !== isAdminFromEmail) {
+            console.log('[AuthContext] Updating admin status from profile:', profileData.role);
+            setIsAdmin(profileData.role === 'admin');
+          }
+        } else {
+          // No profile found or permission denied - create a default profile
+          console.log('[AuthContext] Creating default profile from auth user data');
+          
+          // Create default profile using auth user data
+          const defaultProfile = {
+            id: userId,
+            role: isAdminFromEmail ? 'admin' : 'user',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            // Add any additional fields from auth user if available
+            full_name: authUser.user_metadata?.full_name || '',
+            avatar_url: authUser.user_metadata?.avatar_url || ''
+          };
+          
+          // Set the profile in state
+          setProfile(defaultProfile as UserProfile);
+          
+          // Check if profile exists first to avoid duplicate key errors
           try {
-            const userProfile = await fetchUserProfile(session.user.id);
-            console.log('[AuthContext] Profile retrieved:', userProfile ? 'Profile exists' : 'No profile');
+            console.log('[AuthContext] Checking if profile exists before creating');
+            const { count, error: countError } = await supabase
+              .from('profiles')
+              .select('*', { count: 'exact', head: true })
+              .eq('id', userId);
+              
+            if (countError) {
+              console.log('[AuthContext] Error checking profile existence:', countError);
+              // Continue anyway and try to create
+            } else if (count && count > 0) {
+              console.log('[AuthContext] Profile already exists, skipping creation');
+              return; // Skip creation if profile exists
+            }
             
-            // Even if profile is null, we should continue and set loading to false
-            setProfile(userProfile);
-            setIsAdmin(userProfile?.role === 'admin');
-            console.log('[AuthContext] Is admin:', userProfile?.role === 'admin');
-          } catch (profileError) {
-            // Handle profile fetch errors gracefully
-            console.error('[AuthContext] Error fetching profile:', profileError);
-            setProfile(null);
-            setIsAdmin(false);
+            // Try to create the profile in the database - but don't block on this
+            console.log('[AuthContext] Attempting to create profile in database');
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert([
+                {
+                  id: userId,
+                  role: isAdminFromEmail ? 'admin' : 'user',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  full_name: authUser.user_metadata?.full_name || '',
+                  avatar_url: authUser.user_metadata?.avatar_url || ''
+                }
+              ]);
+              
+            if (insertError) {
+              // If we get permission denied here, it's expected with our RLS policies
+              if (insertError.message.includes('permission denied')) {
+                console.log('[AuthContext] Permission denied creating profile - this is expected with RLS');
+              } else if (insertError.message.includes('duplicate key')) {
+                console.log('[AuthContext] Profile already exists (duplicate key)');
+              } else {
+                console.error('[AuthContext] Error creating profile in background:', insertError);
+              }
+            } else {
+              console.log('[AuthContext] Profile created successfully in background');
+            }
+          } catch (insertError) {
+            console.error('[AuthContext] Exception creating profile in background:', insertError);
           }
         }
       } catch (error) {
-        console.error('[AuthContext] Exception in getSession:', error);
+        console.error('[AuthContext] Exception in background profile handling:', error);
+        setProfileFetchFailed(true);
+        
+        // Even on error, create a fallback profile based on email
+        if (user) {
+          console.log('[AuthContext] Creating fallback profile after error');
+          const fallbackProfile = {
+            id: userId,
+            role: isAdminFromEmail ? 'admin' : 'user',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          setProfile(fallbackProfile as UserProfile);
+        }
       } finally {
-        console.log('[AuthContext] Initial auth check complete - Setting loading to false');
+        // Always set loading to false when background fetch completes
         setLoading(false);
+        console.log('[AuthContext] Background profile fetch complete, loading set to false');
       }
     };
+    
+    getInitialSession();
 
-    getSession();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event: string, session: Session | null) => {
-        console.log(`[AuthContext] Auth state changed: ${event}`);
-        console.log('[AuthContext] Setting loading to true in auth state change');
-        setLoading(true);
+    // Listen for auth state changes - simplified approach
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log(`[AuthContext] Auth state change: ${event}`);
         
-        try {
-          setSession(session);
-          setUser(session?.user ?? null);
+        // Update session and user immediately
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Quick admin check from email
+          const isAdminUser = Boolean(session.user.email?.includes('admin') || session.user.email?.endsWith('@sakah.online'));
+          console.log('[AuthContext] Quick admin check on auth change:', isAdminUser ? 'Is admin' : 'Not admin');
           
-          if (session?.user) {
-            console.log('[AuthContext] User found in auth change, fetching profile');
-            try {
-              const userProfile = await fetchUserProfile(session.user.id);
-              console.log('[AuthContext] Profile in auth change:', userProfile ? 'Profile exists' : 'No profile');
-              
-              // If profile fetch fails, we'll use null but still continue
-              setProfile(userProfile);
-              setIsAdmin(userProfile?.role === 'admin');
-              console.log('[AuthContext] Is admin in auth change:', userProfile?.role === 'admin');
-            } catch (profileError) {
-              // Handle profile fetch errors gracefully
-              console.error('[AuthContext] Error fetching profile in auth change:', profileError);
-              setProfile(null);
-              setIsAdmin(false);
-            }
-          } else {
-            console.log('[AuthContext] No user in auth change, clearing profile');
-            setProfile(null);
-            setIsAdmin(false);
-          }
-        } catch (error) {
-          console.error('[AuthContext] Exception in auth state change:', error);
-        } finally {
-          console.log('[AuthContext] Auth state change complete - Setting loading to false');
+          // Set admin status immediately based on email
+          setIsAdmin(isAdminUser);
+          
+          // Create a minimal profile immediately to ensure UI can proceed
+          const minimalProfile = {
+            id: session.user.id,
+            role: isAdminUser ? 'admin' : 'user',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          setProfile(minimalProfile as UserProfile);
+          
+          // Set loading to false immediately to unblock UI
           setLoading(false);
+          
+          // Fetch complete profile in background - completely non-blocking
+          setTimeout(() => {
+            fetchProfileInBackground(session.user.id, isAdminUser);
+          }, 0);
+        } else {
+          console.log('[AuthContext] No user in session after auth change');
+          setProfile(null);
+          setIsAdmin(false);
+          setLoading(false); // Done loading if no user
         }
       }
     );
 
     return () => {
-      authListener?.subscription.unsubscribe();
+      console.log('[AuthContext] Cleaning up auth listener');
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
     };
   }, []);
 
@@ -246,13 +449,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('[AuthContext] Error signing out:', error);
+        throw error;
       }
-      // setUser(null) and setSession(null) will be handled by onAuthStateChange
-      console.log('[AuthContext] Clearing profile and admin status');
+      
+      // Explicitly clear all auth state
+      console.log('[AuthContext] Explicitly clearing all auth state');
+      setSession(null);
+      setUser(null);
       setProfile(null);
       setIsAdmin(false);
+      setProfileFetchFailed(false);
+      
+      console.log('[AuthContext] Sign out successful');
     } catch (error) {
       console.error('[AuthContext] Exception in signOut:', error);
+      // Still clear state even if there was an error
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setIsAdmin(false);
+      setProfileFetchFailed(false);
     } finally {
       console.log('[AuthContext] Sign out complete - Setting loading to false');
       setLoading(false);
@@ -265,6 +481,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     profile,
     loading,
     isAdmin,
+    profileFetchFailed,
     signOut,
     checkIsAdmin,
     refreshProfile,
@@ -273,6 +490,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// Export the hook as a named constant to be compatible with HMR
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {

@@ -42,7 +42,7 @@ const AdminListingsPage: React.FC = () => {
     try {
       let query = supabase
         .from('listings')
-        .select('*, profiles!listings_owner_id_fkey(full_name, username)', { count: 'exact' });
+        .select('*', { count: 'exact' });
 
       // Apply status filter if not 'all'
       if (statusFilter !== 'all') {
@@ -62,11 +62,40 @@ const AdminListingsPage: React.FC = () => {
         return;
       }
 
+      // Get all unique user IDs from the listings
+      const userIds = [...new Set(data.map(listing => listing.user_id))];
+      
+      // Fetch profile information for these users
+      let userProfiles: Record<string, { full_name?: string; username?: string }> = {};
+      
+      if (userIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, username')
+          .in('id', userIds);
+          
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        } else if (profilesData) {
+          // Create a map of user_id to profile info
+          userProfiles = profilesData.reduce((acc: Record<string, { full_name?: string; username?: string }>, profile) => {
+            acc[profile.id] = { 
+              full_name: profile.full_name,
+              username: profile.username
+            };
+            return acc;
+          }, {});
+        }
+      }
+      
       // Transform data to include owner name
-      const transformedData = data.map(item => ({
-        ...item,
-        owner_name: item.profiles?.full_name || item.profiles?.username || 'Unknown User'
-      }));
+      const transformedData = data.map(item => {
+        const profile = userProfiles[item.user_id];
+        return {
+          ...item,
+          owner_name: profile?.full_name || profile?.username || 'Unknown User'
+        };
+      });
 
       setListings(transformedData);
       setTotalCount(count || 0);

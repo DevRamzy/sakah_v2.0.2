@@ -36,7 +36,7 @@ const AdminUsersPage: React.FC = () => {
     try {
       let query = supabase
         .from('profiles')
-        .select('*, listings(count)', { count: 'exact' });
+        .select('*', { count: 'exact' });
 
       // Apply role filter if not 'all'
       if (roleFilter !== 'all') {
@@ -61,10 +61,33 @@ const AdminUsersPage: React.FC = () => {
         return;
       }
 
+      // Get user IDs for a separate query to count listings
+      const userIds = data.map(user => user.id);
+      
+      // If we have users, fetch their listing counts
+      let userListingCounts: Record<string, number> = {};
+      if (userIds.length > 0) {
+        const { data: listingData, error: listingError } = await supabase
+          .from('listings')
+          .select('user_id, count(*)')
+          .in('user_id', userIds)
+          .group('user_id') as any; // Type assertion needed due to Supabase typing limitations
+          
+        if (listingError) {
+          console.error('Error fetching listing counts:', listingError);
+        } else if (listingData) {
+          // Create a map of user_id to listing count
+          userListingCounts = listingData.reduce((acc: Record<string, number>, item: { user_id: string; count: number }) => {
+            acc[item.user_id] = item.count;
+            return acc;
+          }, {});
+        }
+      }
+      
       // Transform data to include listing count
       const transformedData = data.map(item => ({
         ...item,
-        listing_count: item.listings?.count || 0
+        listing_count: userListingCounts[item.id] || 0
       }));
 
       setUsers(transformedData);
