@@ -347,15 +347,15 @@ const AdminDashboard: React.FC = () => {
   const getActionIcon = (action: string) => {
     switch (action) {
       case 'approve':
-        return <CheckCircle className="w-5 h-5" aria-hidden="true" />;
+        return <CheckCircle className="w-5 h-5\" aria-hidden="true" />;
       case 'reject':
-        return <AlertTriangle className="w-5 h-5" aria-hidden="true" />;
+        return <AlertTriangle className="w-5 h-5\" aria-hidden="true" />;
       case 'feature':
-        return <Star className="w-5 h-5" aria-hidden="true" />;
+        return <Star className="w-5 h-5\" aria-hidden="true" />;
       case 'update_role':
-        return <Users className="w-5 h-5" aria-hidden="true" />;
+        return <Users className="w-5 h-5\" aria-hidden="true" />;
       default:
-        return <Clock className="w-5 h-5" aria-hidden="true" />;
+        return <Clock className="w-5 h-5\" aria-hidden="true" />;
     }
   };
 
@@ -465,9 +465,9 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 <div className={`flex items-center ${stats.pendingListings > 5 ? 'text-red-600' : 'text-yellow-600'}`}>
                   {stats.pendingListings > 5 ? (
-                    <ArrowUpRight className="h-4 w-4 mr-1" aria-hidden="true" />
+                    <ArrowUpRight className="h-4 w-4 mr-1\" aria-hidden="true" />
                   ) : (
-                    <ArrowDownRight className="h-4 w-4 mr-1" aria-hidden="true" />
+                    <ArrowDownRight className="h-4 w-4 mr-1\" aria-hidden="true" />
                   )}
                   <span className="text-xs font-medium">{stats.pendingListings} pending</span>
                 </div>
@@ -631,7 +631,7 @@ const AdminDashboard: React.FC = () => {
               <div className="space-y-4">
                 {recentUsers.length === 0 ? (
                   <div className="text-center py-8">
-                    <Users className="w-12 h-12 text-neutral-300 mx-auto mb-3" aria-hidden="true" />
+                    <Users className="w-12 h-12 text-neutral-300 mx-auto mb-3\" aria-hidden="true" />
                     <p className="text-neutral-500">No recent users</p>
                   </div>
                 ) : (

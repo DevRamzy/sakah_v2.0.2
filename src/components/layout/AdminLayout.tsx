@@ -147,14 +147,14 @@ const AdminLayout: React.FC = () => {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-500" aria-hidden="true" />;
+        return <CheckCircle className="w-5 h-5 text-green-500\" aria-hidden="true" />;
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-yellow-500" aria-hidden="true" />;
+        return <AlertTriangle className="w-5 h-5 text-yellow-500\" aria-hidden="true" />;
       case 'error':
-        return <AlertTriangle className="w-5 h-5 text-red-500" aria-hidden="true" />;
+        return <AlertTriangle className="w-5 h-5 text-red-500\" aria-hidden="true" />;
       case 'info':
       default:
-        return <Bell className="w-5 h-5 text-blue-500" aria-hidden="true" />;
+        return <Bell className="w-5 h-5 text-blue-500\" aria-hidden="true" />;
     }
   };
 
@@ -170,8 +170,8 @@ const AdminLayout: React.FC = () => {
         <div className="h-full flex flex-col">
           <div className="p-4 flex items-center justify-between border-b border-neutral-800">
             {isSidebarOpen ? (
-              <Link to="/admin" className="flex items-center">
-                <img src="/Sakah logo new.png" alt="Sakah" className="h-8 mr-2" />
+              <Link to="/admin\" className="flex items-center">
+                <img src="/Sakah logo new.png\" alt="Sakah\" className="h-8 mr-2" />
                 <span className="text-xl font-bold text-yellow-400">Admin</span>
               </Link>
             ) : (
@@ -185,9 +185,9 @@ const AdminLayout: React.FC = () => {
               aria-label={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
               {isSidebarOpen ? (
-                <ChevronLeft className="h-5 w-5 text-neutral-400" aria-hidden="true" />
+                <ChevronLeft className="h-5 w-5 text-neutral-400\" aria-hidden="true" />
               ) : (
-                <ChevronRight className="h-5 w-5 text-neutral-400" aria-hidden="true" />
+                <ChevronRight className="h-5 w-5 text-neutral-400\" aria-hidden="true" />
               )}
             </button>
           </div>
@@ -346,7 +346,7 @@ const AdminLayout: React.FC = () => {
                     <div className="max-h-80 overflow-y-auto">
                       {notifications.length === 0 ? (
                         <div className="p-4 text-center text-neutral-500">
-                          <Bell className="h-8 w-8 mx-auto mb-2 text-neutral-300" aria-hidden="true" />
+                          <Bell className="h-8 w-8 mx-auto mb-2 text-neutral-300\" aria-hidden="true" />
                           <p>No notifications</p>
                         </div>
                       ) : (
