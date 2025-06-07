@@ -1,8 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import ListingsTab from '../features/listings/components/dashboard/ListingsTab';
+import { 
+  Home, 
+  ListChecks, 
+  Settings, 
+  PlusCircle, 
+  LogOut, 
+  User, 
+  Bell, 
+  Heart, 
+  Clock, 
+  ChevronRight,
+  BarChart2,
+  MessageSquare,
+  ShieldCheck
+} from 'lucide-react';
 
 interface Profile {
   id: string;
@@ -12,11 +28,30 @@ interface Profile {
   role: string;
 }
 
+interface DashboardStats {
+  totalListings: number;
+  publishedListings: number;
+  draftListings: number;
+  savedListings: number;
+}
+
 const Dashboard: React.FC = () => {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [stats, setStats] = useState<DashboardStats>({
+    totalListings: 0,
+    publishedListings: 0,
+    draftListings: 0,
+    savedListings: 0
+  });
+  const [notifications, setNotifications] = useState([
+    { id: 1, message: 'Your listing "Downtown Apartment" has 5 new views', time: '2 hours ago', read: false },
+    { id: 2, message: 'New message from a potential customer', time: '1 day ago', read: true },
+    { id: 3, message: 'Your account has been successfully verified', time: '3 days ago', read: true }
+  ]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -67,6 +102,41 @@ const Dashboard: React.FC = () => {
           } else {
             setProfile(data);
           }
+          
+          // Fetch dashboard stats
+          const fetchStats = async () => {
+            try {
+              // Get total listings count
+              const { count: totalCount } = await supabase
+                .from('listings')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user.id);
+                
+              // Get published listings count
+              const { count: publishedCount } = await supabase
+                .from('listings')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user.id)
+                .eq('is_published', true);
+                
+              // Calculate draft listings
+              const draftCount = (totalCount || 0) - (publishedCount || 0);
+              
+              // For now, use a placeholder for saved listings
+              const savedCount = 3;
+              
+              setStats({
+                totalListings: totalCount || 0,
+                publishedListings: publishedCount || 0,
+                draftListings: draftCount,
+                savedListings: savedCount
+              });
+            } catch (error) {
+              console.error('Error fetching stats:', error);
+            }
+          };
+          
+          fetchStats();
         } catch (error) {
           console.error('Error in profile flow:', error);
         } finally {
@@ -82,12 +152,13 @@ const Dashboard: React.FC = () => {
 
   // Redirect to login if not authenticated
   if (!user && !loading) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/auth" replace />;
   }
 
   const handleSignOut = async () => {
     try {
       await signOut();
+      navigate('/');
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -99,98 +170,377 @@ const Dashboard: React.FC = () => {
         return user ? <ListingsTab userId={user.id} /> : null;
       case 'overview':
         return (
-          <div className="animate-fadeIn">
-            <h2 className="text-xl font-semibold mb-4">Account Overview</h2>
-            <div className="bg-white rounded-lg shadow p-6 mb-6">
-              <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-                <div className="bg-primary-light rounded-full p-4">
-                  <svg className="h-12 w-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                  </svg>
-                </div>
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-8"
+          >
+            {/* Welcome Section */}
+            <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl p-6 shadow-md">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h3 className="text-lg font-medium">{profile?.full_name || 'User'}</h3>
-                  <p className="text-gray-500">{user?.email}</p>
-                  <div className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-light text-primary-dark">
-                    {profile?.role || 'user'}
+                  <h2 className="text-2xl font-bold text-black mb-2">
+                    Welcome back, {profile?.full_name || profile?.username || 'User'}!
+                  </h2>
+                  <p className="text-black/80 max-w-xl">
+                    Manage your listings, track performance, and grow your presence on Sakah.
+                  </p>
+                </div>
+                <div className="mt-4 md:mt-0">
+                  <Link 
+                    to="/create-listing" 
+                    className="inline-flex items-center px-4 py-2 bg-black text-yellow-400 rounded-lg font-medium hover:bg-neutral-800 transition-colors"
+                  >
+                    <PlusCircle className="w-5 h-5 mr-2" />
+                    Create New Listing
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <motion.div 
+                className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow"
+                whileHover={{ y: -5 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-100 rounded-lg">
+                    <ListChecks className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                    All
+                  </span>
+                </div>
+                <h3 className="text-2xl font-bold text-neutral-800">{stats.totalListings}</h3>
+                <p className="text-neutral-500 text-sm">Total Listings</p>
+                <Link to="/dashboard?tab=listings" className="mt-4 text-sm text-blue-600 flex items-center hover:underline">
+                  View all <ChevronRight className="w-4 h-4 ml-1" />
+                </Link>
+              </motion.div>
+              
+              <motion.div 
+                className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow"
+                whileHover={{ y: -5 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <BarChart2 className="w-6 h-6 text-green-600" />
+                  </div>
+                  <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                    Active
+                  </span>
+                </div>
+                <h3 className="text-2xl font-bold text-neutral-800">{stats.publishedListings}</h3>
+                <p className="text-neutral-500 text-sm">Published Listings</p>
+                <Link to="/dashboard?tab=listings&filter=published" className="mt-4 text-sm text-green-600 flex items-center hover:underline">
+                  View published <ChevronRight className="w-4 h-4 ml-1" />
+                </Link>
+              </motion.div>
+              
+              <motion.div 
+                className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow"
+                whileHover={{ y: -5 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-yellow-100 rounded-lg">
+                    <Clock className="w-6 h-6 text-yellow-600" />
+                  </div>
+                  <span className="text-sm font-medium text-yellow-600 bg-yellow-50 px-2 py-1 rounded-full">
+                    Pending
+                  </span>
+                </div>
+                <h3 className="text-2xl font-bold text-neutral-800">{stats.draftListings}</h3>
+                <p className="text-neutral-500 text-sm">Draft Listings</p>
+                <Link to="/dashboard?tab=listings&filter=draft" className="mt-4 text-sm text-yellow-600 flex items-center hover:underline">
+                  View drafts <ChevronRight className="w-4 h-4 ml-1" />
+                </Link>
+              </motion.div>
+              
+              <motion.div 
+                className="bg-white rounded-xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition-shadow"
+                whileHover={{ y: -5 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-red-100 rounded-lg">
+                    <Heart className="w-6 h-6 text-red-600" />
+                  </div>
+                  <span className="text-sm font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">
+                    Saved
+                  </span>
+                </div>
+                <h3 className="text-2xl font-bold text-neutral-800">{stats.savedListings}</h3>
+                <p className="text-neutral-500 text-sm">Saved Listings</p>
+                <Link to="/dashboard?tab=saved" className="mt-4 text-sm text-red-600 flex items-center hover:underline">
+                  View saved <ChevronRight className="w-4 h-4 ml-1" />
+                </Link>
+              </motion.div>
+            </div>
+            
+            {/* Recent Activity & Notifications */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-neutral-200">
+                    <h3 className="text-lg font-semibold text-neutral-800">Recent Activity</h3>
+                  </div>
+                  <div className="p-6">
+                    <div className="space-y-6">
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                          <User className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-neutral-800">Profile Updated</p>
+                          <p className="text-sm text-neutral-500">You updated your profile information</p>
+                          <p className="text-xs text-neutral-400 mt-1">2 days ago</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                          <ListChecks className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-neutral-800">Listing Published</p>
+                          <p className="text-sm text-neutral-500">Your listing "Downtown Apartment" was published</p>
+                          <p className="text-xs text-neutral-400 mt-1">3 days ago</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                          <MessageSquare className="h-5 w-5 text-yellow-600" />
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-neutral-800">New Message</p>
+                          <p className="text-sm text-neutral-500">You received a new message about your listing</p>
+                          <p className="text-xs text-neutral-400 mt-1">5 days ago</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-neutral-200 flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-neutral-800">Notifications</h3>
+                    <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full">
+                      {notifications.filter(n => !n.read).length}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-neutral-200">
+                    {notifications.map(notification => (
+                      <div 
+                        key={notification.id} 
+                        className={`p-4 hover:bg-neutral-50 transition-colors ${!notification.read ? 'bg-yellow-50' : ''}`}
+                      >
+                        <div className="flex justify-between">
+                          <p className={`text-sm ${!notification.read ? 'font-medium text-neutral-800' : 'text-neutral-600'}`}>
+                            {notification.message}
+                          </p>
+                          {!notification.read && (
+                            <span className="h-2 w-2 bg-yellow-500 rounded-full flex-shrink-0"></span>
+                          )}
+                        </div>
+                        <p className="text-xs text-neutral-400 mt-1">{notification.time}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-4 text-center border-t border-neutral-200">
+                    <button className="text-sm text-yellow-600 hover:text-yellow-700 font-medium">
+                      View All Notifications
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        );
+      case 'settings':
+        return (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-8"
+          >
+            <h2 className="text-2xl font-bold text-neutral-800 mb-6">Account Settings</h2>
+            
+            {/* Profile Information */}
+            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-neutral-200">
+                <h3 className="text-lg font-semibold text-neutral-800">Profile Information</h3>
+              </div>
+              <div className="p-6">
+                <div className="flex flex-col md:flex-row gap-8">
+                  <div className="flex-shrink-0">
+                    <div className="relative">
+                      <div className="h-32 w-32 rounded-full bg-neutral-200 flex items-center justify-center overflow-hidden">
+                        {profile?.avatar_url ? (
+                          <img src={profile.avatar_url} alt="Profile" className="h-full w-full object-cover" />
+                        ) : (
+                          <User className="h-16 w-16 text-neutral-400" />
+                        )}
+                      </div>
+                      <button className="absolute bottom-0 right-0 bg-yellow-500 text-black p-2 rounded-full hover:bg-yellow-600 transition-colors">
+                        <PlusCircle className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          defaultValue={profile?.full_name || ''}
+                          className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">
+                          Username
+                        </label>
+                        <input
+                          type="text"
+                          defaultValue={profile?.username || ''}
+                          className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        defaultValue={user?.email || ''}
+                        disabled
+                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg bg-neutral-50 text-neutral-500"
+                      />
+                      <p className="mt-1 text-xs text-neutral-500">
+                        To change your email address, please contact support.
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">
+                        Bio
+                      </label>
+                      <textarea
+                        rows={4}
+                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                        placeholder="Tell us a bit about yourself..."
+                      ></textarea>
+                    </div>
+                    
+                    <div className="flex justify-end">
+                      <button className="px-4 py-2 bg-yellow-500 text-black rounded-lg font-medium hover:bg-yellow-600 transition-colors">
+                        Save Changes
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-medium mb-4">Account Details</h3>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-500">Username</p>
-                    <p>{profile?.username || 'Not set'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Email</p>
-                    <p>{user?.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Member since</p>
-                    <p>{user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}</p>
-                  </div>
-                </div>
+            {/* Security Settings */}
+            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-neutral-200">
+                <h3 className="text-lg font-semibold text-neutral-800">Security</h3>
               </div>
-              
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-medium mb-4">Activity</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 h-8 w-8 rounded-full bg-green-100 flex items-center justify-center mr-3">
-                      <svg className="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Account created</p>
-                      <p className="text-xs text-gray-500">{user?.created_at ? new Date(user.created_at).toLocaleString() : 'Unknown'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
-                      <svg className="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Last sign in</p>
-                      <p className="text-xs text-gray-500">{user?.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'Unknown'}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      case 'settings':
-        return (
-          <div className="animate-fadeIn">
-            <h2 className="text-xl font-semibold mb-4">Account Settings</h2>
-            <div className="bg-white rounded-lg shadow p-6">
-              <p className="text-gray-500 mb-4">Manage your account settings and preferences</p>
-              <div className="space-y-4">
+              <div className="p-6 space-y-6">
                 <div>
-                  <h3 className="text-md font-medium mb-2">Profile Information</h3>
-                  <p className="text-sm text-gray-500 mb-4">Update your account's profile information</p>
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-150 ease-in-out">
-                    Edit Profile
-                  </button>
-                </div>
-                <div className="border-t pt-4">
-                  <h3 className="text-md font-medium mb-2">Password</h3>
-                  <p className="text-sm text-gray-500 mb-4">Ensure your account is using a secure password</p>
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-150 ease-in-out">
+                  <h4 className="text-md font-medium text-neutral-800 mb-2">Password</h4>
+                  <p className="text-sm text-neutral-600 mb-4">
+                    Update your password to keep your account secure.
+                  </p>
+                  <button className="px-4 py-2 bg-neutral-800 text-white rounded-lg font-medium hover:bg-neutral-700 transition-colors">
                     Change Password
                   </button>
                 </div>
+                
+                <div className="pt-6 border-t border-neutral-200">
+                  <h4 className="text-md font-medium text-neutral-800 mb-2">Two-Factor Authentication</h4>
+                  <p className="text-sm text-neutral-600 mb-4">
+                    Add an extra layer of security to your account.
+                  </p>
+                  <button className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg font-medium hover:bg-neutral-50 transition-colors">
+                    Enable 2FA
+                  </button>
+                </div>
+                
+                <div className="pt-6 border-t border-neutral-200">
+                  <h4 className="text-md font-medium text-neutral-800 mb-2">Account Deactivation</h4>
+                  <p className="text-sm text-neutral-600 mb-4">
+                    Temporarily deactivate or permanently delete your account.
+                  </p>
+                  <button className="px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors">
+                    Deactivate Account
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+            
+            {/* Notification Preferences */}
+            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-neutral-200">
+                <h3 className="text-lg font-semibold text-neutral-800">Notification Preferences</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-md font-medium text-neutral-800">Email Notifications</h4>
+                    <p className="text-sm text-neutral-600">Receive updates about your account via email</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" defaultChecked />
+                    <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+                  </label>
+                </div>
+                
+                <div className="flex items-center justify-between pt-4 border-t border-neutral-100">
+                  <div>
+                    <h4 className="text-md font-medium text-neutral-800">Listing Updates</h4>
+                    <p className="text-sm text-neutral-600">Get notified about views, inquiries, and interactions</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" defaultChecked />
+                    <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+                  </label>
+                </div>
+                
+                <div className="flex items-center justify-between pt-4 border-t border-neutral-100">
+                  <div>
+                    <h4 className="text-md font-medium text-neutral-800">Marketing Communications</h4>
+                    <p className="text-sm text-neutral-600">Receive promotional offers and updates</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" />
+                    <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+                  </label>
+                </div>
+                
+                <div className="pt-4 flex justify-end">
+                  <button className="px-4 py-2 bg-yellow-500 text-black rounded-lg font-medium hover:bg-yellow-600 transition-colors">
+                    Save Preferences
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         );
       default:
         return null;
@@ -198,20 +548,57 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 w-full">
+    <div className="min-h-screen bg-neutral-50">
       {/* Header */}
-      <header className="bg-charcoal shadow w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+      <header className="bg-black shadow-md sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
           <div className="flex items-center">
-            <img src="/Sakah logo new.png" alt="Sakah Logo" className="h-8 mr-2" />
-            <h1 className="text-xl font-bold text-white">Dashboard</h1>
+            <Link to="/" className="flex items-center">
+              <img src="/Sakah logo new.png" alt="Sakah Logo" className="h-8 mr-2" />
+            </Link>
+            <div className="hidden md:block ml-6">
+              <h1 className="text-xl font-bold text-white">Dashboard</h1>
+            </div>
           </div>
-          <button
-            onClick={handleSignOut}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-jet-black bg-primary hover:bg-jet-black hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition duration-150 ease-in-out"
-          >
-            Sign Out
-          </button>
+          
+          <div className="flex items-center space-x-4">
+            <button className="relative text-white hover:text-yellow-400 transition-colors">
+              <Bell className="h-6 w-6" />
+              <span className="absolute -top-1 -right-1 bg-yellow-500 text-black text-xs font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                2
+              </span>
+            </button>
+            
+            <div className="relative group">
+              <button className="flex items-center space-x-2 text-white hover:text-yellow-400 transition-colors">
+                <div className="h-8 w-8 rounded-full bg-neutral-700 flex items-center justify-center overflow-hidden">
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="Profile" className="h-full w-full object-cover" />
+                  ) : (
+                    <User className="h-5 w-5" />
+                  )}
+                </div>
+                <span className="hidden md:inline-block">{profile?.full_name || profile?.username || 'User'}</span>
+              </button>
+              
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50 hidden group-hover:block">
+                <Link to="/dashboard?tab=settings" className="block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100">
+                  Profile Settings
+                </Link>
+                {isAdmin && (
+                  <Link to="/admin" className="block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100">
+                    Admin Panel
+                  </Link>
+                )}
+                <button 
+                  onClick={handleSignOut}
+                  className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-neutral-100"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -219,67 +606,61 @@ const Dashboard: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-500"></div>
           </div>
         ) : (
-          <div className="flex flex-col md:flex-row gap-8">
+          <div className="flex flex-col lg:flex-row gap-8">
             {/* Sidebar */}
-            <div className="w-full md:w-64 flex-shrink-0">
-              <div className="bg-charcoal rounded-lg shadow overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-700">
-                  <h2 className="text-lg font-medium text-white">Navigation</h2>
-                </div>
+            <div className="w-full lg:w-64 flex-shrink-0">
+              <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden sticky top-24">
                 <nav className="p-4 space-y-1">
                   <button
                     onClick={() => setActiveTab('overview')}
-                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'overview' ? 'bg-primary text-jet-black' : 'text-white hover:bg-charcoal hover:bg-opacity-80'}`}
+                    className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'overview' ? 'bg-yellow-500 text-black' : 'text-neutral-700 hover:bg-neutral-100'}`}
                   >
-                    <svg className={`mr-3 h-5 w-5 ${activeTab === 'overview' ? 'text-jet-black' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
-                    Overview
+                    <Home className={`mr-3 h-5 w-5 ${activeTab === 'overview' ? 'text-black' : 'text-neutral-500'}`} />
+                    Dashboard Overview
                   </button>
                   <button
                     onClick={() => setActiveTab('listings')}
-                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'listings' ? 'bg-primary text-jet-black' : 'text-white hover:bg-charcoal hover:bg-opacity-80'}`}
+                    className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'listings' ? 'bg-yellow-500 text-black' : 'text-neutral-700 hover:bg-neutral-100'}`}
                   >
-                    <svg className={`mr-3 h-5 w-5 ${activeTab === 'listings' ? 'text-jet-black' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
+                    <ListChecks className={`mr-3 h-5 w-5 ${activeTab === 'listings' ? 'text-black' : 'text-neutral-500'}`} />
                     My Listings
                   </button>
                   <button
                     onClick={() => setActiveTab('settings')}
-                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'settings' ? 'bg-primary text-jet-black' : 'text-white hover:bg-charcoal hover:bg-opacity-80'}`}
+                    className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'settings' ? 'bg-yellow-500 text-black' : 'text-neutral-700 hover:bg-neutral-100'}`}
                   >
-                    <svg className={`mr-3 h-5 w-5 ${activeTab === 'settings' ? 'text-jet-black' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Settings
+                    <Settings className={`mr-3 h-5 w-5 ${activeTab === 'settings' ? 'text-black' : 'text-neutral-500'}`} />
+                    Account Settings
                   </button>
                   <Link
                     to="/create-listing"
-                    className="w-full flex items-center px-3 py-2 text-sm font-medium rounded-md text-white hover:bg-charcoal hover:bg-opacity-80"
+                    className="w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg text-neutral-700 hover:bg-neutral-100 transition-colors"
                   >
-                    <svg className="mr-3 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
+                    <PlusCircle className="mr-3 h-5 w-5 text-neutral-500" />
                     Create Listing
                   </Link>
                   
                   {/* Admin Panel Link - Only visible for admin users */}
-                  {profile?.role === 'admin' && (
+                  {isAdmin && (
                     <Link
                       to="/admin"
-                      className="w-full flex items-center px-3 py-2 text-sm font-medium rounded-md bg-yellow-500 text-black hover:bg-yellow-600"
+                      className="w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg bg-neutral-800 text-white hover:bg-neutral-700 transition-colors"
                     >
-                      <svg className="mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <ShieldCheck className="mr-3 h-5 w-5 text-yellow-500" />
                       Admin Panel
                     </Link>
                   )}
+                  
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg text-red-600 hover:bg-red-50 transition-colors mt-4"
+                  >
+                    <LogOut className="mr-3 h-5 w-5 text-red-500" />
+                    Sign Out
+                  </button>
                 </nav>
               </div>
             </div>
